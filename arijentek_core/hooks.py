@@ -30,7 +30,7 @@ app_license = "mit"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/arijentek_core/css/arijentek_core.css"
-# web_include_js = "/assets/arijentek_core/js/arijentek_core.js"
+web_include_js = "/assets/arijentek_core/js/login_redirect.js"
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "arijentek_core/public/scss/website"
@@ -250,3 +250,29 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# We will override the standard login check to support Employee ID
+override_whitelisted_methods = {
+    "frappe.auth.login": "arijentek_core.auth.custom_login.login"
+}
+
+# Register the route for the HTML file
+website_route_rules = [
+    {"from_route": "/employee-portal", "to_route": "employee-portal"},
+]
+
+# ✅ CORRECT HOOK for v16 - This is called when Frappe determines home page
+get_website_user_home_page = "arijentek_core.utils.get_employee_home_page"
+
+# Role-based home page (alternative approach - works together with above)
+role_home_page = {
+    "Employee": "/employee-portal"
+}
+
+# NOTE: Removed website_redirects - guests should see login page, not portal
+
+# Hook to redirect employees after login
+# MUST use on_session_creation (not on_login) because home_page is set AFTER on_login
+on_session_creation = "arijentek_core.utils.redirect_employee_after_login"
+
+# Hook to modify boot session data - redirects employees from desk
+boot_session = "arijentek_core.utils.redirect_employee_on_boot"
