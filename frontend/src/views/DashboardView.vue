@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { dashboardApi, attendanceApi, leaveApi } from '../services/api'
-import ClockWidget from '../components/ClockWidget.vue'
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
+import { dashboardApi, attendanceApi, leaveApi } from '../services/api';
+import ClockWidget from '../components/ClockWidget.vue';
 import {
   CalendarCheck,
   CalendarX,
@@ -13,33 +13,33 @@ import {
   ArrowRight,
   Briefcase,
   Building2,
-} from 'lucide-vue-next'
+} from 'lucide-vue-next';
 
-const router = useRouter()
-const auth = useAuthStore()
-const loading = ref(true)
+const router = useRouter();
+const auth = useAuthStore();
+const loading = ref(true);
 
 interface DashData {
-  employee: string
-  employee_name: string
-  department: string
-  designation: string
-  current_month: string
-  year: number
-  attendance_summary: Record<string, number>
-  last_punch: { log_type: string; time: string } | null
+  employee: string;
+  employee_name: string;
+  department: string;
+  designation: string;
+  current_month: string;
+  year: number;
+  attendance_summary: Record<string, number>;
+  last_punch: { log_type: string; time: string } | null;
 }
 
-const dash = ref<DashData | null>(null)
-const leaveBalance = ref<{ leave_type: string; balance: number }[]>([])
-const recentLeaves = ref<any[]>([])
+const dash = ref<DashData | null>(null);
+const leaveBalance = ref<{ leave_type: string; balance: number }[]>([]);
+const recentLeaves = ref<any[]>([]);
 
 const greeting = computed(() => {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good Morning'
-  if (h < 17) return 'Good Afternoon'
-  return 'Good Evening'
-})
+  const h = new Date().getHours();
+  if (h < 12) return 'Good Morning';
+  if (h < 17) return 'Good Afternoon';
+  return 'Good Evening';
+});
 
 const today = computed(() =>
   new Date().toLocaleDateString('en-US', {
@@ -48,34 +48,34 @@ const today = computed(() =>
     month: 'long',
     day: 'numeric',
   })
-)
+);
 
 const stats = computed(() => {
-  const s = dash.value?.attendance_summary || {}
+  const s = dash.value?.attendance_summary || {};
   return [
     { label: 'Present', value: s['Present'] || 0, icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
     { label: 'Absent', value: s['Absent'] || 0, icon: CalendarX, color: 'text-red-400', bg: 'bg-red-500/10' },
     { label: 'Half Day', value: s['Half Day'] || 0, icon: CalendarClock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  ]
-})
+  ];
+});
 
 const totalLeave = computed(() =>
   leaveBalance.value.reduce((sum, b) => sum + b.balance, 0)
-)
+);
 
 async function loadDashboard() {
-  loading.value = true
+  loading.value = true;
   try {
     const [dashData, leaves, apps] = await Promise.allSettled([
       dashboardApi.getData(),
       leaveApi.getBalance(),
       leaveApi.getApplications(),
-    ])
-    if (dashData.status === 'fulfilled') dash.value = dashData.value
-    if (leaves.status === 'fulfilled') leaveBalance.value = leaves.value || []
-    if (apps.status === 'fulfilled') recentLeaves.value = (apps.value || []).slice(0, 3)
+    ]);
+    if (dashData.status === 'fulfilled') dash.value = dashData.value;
+    if (leaves.status === 'fulfilled') leaveBalance.value = leaves.value || [];
+    if (apps.status === 'fulfilled') recentLeaves.value = (apps.value || []).slice(0, 3);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
@@ -85,11 +85,11 @@ function statusBadge(status: string) {
     'Approved': 'badge-success',
     'Rejected': 'badge-danger',
     'Cancelled': 'badge-neutral',
-  }
-  return map[status] || 'badge-neutral'
+  };
+  return map[status] || 'badge-neutral';
 }
 
-onMounted(loadDashboard)
+onMounted(loadDashboard);
 </script>
 
 <template>

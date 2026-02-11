@@ -1,34 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { LogIn, Loader2, AlertCircle } from 'lucide-vue-next'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
+import { LogIn, Loader2, AlertCircle } from 'lucide-vue-next';
 
-const router = useRouter()
-const authStore = useAuthStore()
+const router = useRouter();
+const authStore = useAuthStore();
 
-const username = ref('')
-const password = ref('')
-const error = ref('')
-const loading = ref(false)
+const username = ref('');
+const password = ref('');
+const error = ref('');
+const loading = ref(false);
 
 async function handleLogin() {
-  loading.value = true
-  error.value = ''
+  loading.value = true;
+  error.value = '';
 
   try {
-    const result = await authStore.login(username.value, password.value)
+    const result = await authStore.login(username.value, password.value);
 
     if (result && result.success) {
-      router.push('/')
+      router.push('/');
     } else {
-      const errObj = result?.error as any
-      error.value = errObj?.message || errObj || 'Invalid credentials'
+      const errObj = result?.error as any;
+      error.value = errObj?.message || errObj || 'Invalid credentials';
     }
   } catch (e: any) {
-    error.value = e.message || 'Login failed'
+    error.value = e.message || 'Login failed';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 </script>

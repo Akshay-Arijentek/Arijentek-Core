@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { leaveApi, dashboardApi } from '../services/api'
+import { ref, onMounted, computed } from 'vue';
+import { leaveApi, dashboardApi } from '../services/api';
 import {
   Palmtree,
   Plus,
@@ -14,30 +14,30 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-} from 'lucide-vue-next'
+} from 'lucide-vue-next';
 
-const loading = ref(true)
-const balance = ref<{ leave_type: string; balance: number }[]>([])
-const applications = ref<any[]>([])
-const leaveTypes = ref<string[]>([])
-const manager = ref<any>(null)
+const loading = ref(true);
+const balance = ref<{ leave_type: string; balance: number }[]>([]);
+const applications = ref<any[]>([]);
+const leaveTypes = ref<string[]>([]);
+const manager = ref<any>(null);
 
 // Apply form
-const showApplyForm = ref(false)
-const applyLoading = ref(false)
-const applyError = ref('')
-const applySuccess = ref('')
+const showApplyForm = ref(false);
+const applyLoading = ref(false);
+const applyError = ref('');
+const applySuccess = ref('');
 const form = ref({
   leave_type: '',
   from_date: '',
   to_date: '',
   half_day: 0,
   reason: '',
-})
+});
 
 const totalBalance = computed(() =>
   balance.value.reduce((s, b) => s + b.balance, 0)
-)
+);
 
 // Colors for leave types
 const typeColors = [
@@ -47,10 +47,10 @@ const typeColors = [
   { bg: 'bg-amber-500/10', text: 'text-amber-400', ring: 'ring-amber-500/20' },
   { bg: 'bg-rose-500/10', text: 'text-rose-400', ring: 'ring-rose-500/20' },
   { bg: 'bg-emerald-500/10', text: 'text-emerald-400', ring: 'ring-emerald-500/20' },
-]
+];
 
 function getTypeColor(idx: number) {
-  return typeColors[idx % typeColors.length]
+  return typeColors[idx % typeColors.length];
 }
 
 function statusBadge(status: string) {
@@ -59,8 +59,8 @@ function statusBadge(status: string) {
     'Approved': 'badge-success',
     'Rejected': 'badge-danger',
     'Cancelled': 'badge-neutral',
-  }
-  return m[status] || 'badge-neutral'
+  };
+  return m[status] || 'badge-neutral';
 }
 
 function statusIcon(status: string) {
@@ -69,68 +69,68 @@ function statusIcon(status: string) {
     'Approved': CheckCircle2,
     'Rejected': XCircle,
     'Cancelled': XCircle,
-  }
-  return m[status] || Clock
+  };
+  return m[status] || Clock;
 }
 
 async function loadData() {
-  loading.value = true
+  loading.value = true;
   try {
     const [bal, apps, types, mgr] = await Promise.allSettled([
       leaveApi.getBalance(),
       leaveApi.getApplications(),
       leaveApi.getTypes(),
       dashboardApi.getReportingInfo(),
-    ])
-    if (bal.status === 'fulfilled') balance.value = bal.value || []
-    if (apps.status === 'fulfilled') applications.value = apps.value || []
-    if (types.status === 'fulfilled') leaveTypes.value = types.value || []
-    if (mgr.status === 'fulfilled') manager.value = mgr.value
+    ]);
+    if (bal.status === 'fulfilled') balance.value = bal.value || [];
+    if (apps.status === 'fulfilled') applications.value = apps.value || [];
+    if (types.status === 'fulfilled') leaveTypes.value = types.value || [];
+    if (mgr.status === 'fulfilled') manager.value = mgr.value;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function openApplyForm() {
-  form.value = { leave_type: leaveTypes.value[0] || '', from_date: '', to_date: '', half_day: 0, reason: '' }
-  applyError.value = ''
-  applySuccess.value = ''
-  showApplyForm.value = true
+  form.value = { leave_type: leaveTypes.value[0] || '', from_date: '', to_date: '', half_day: 0, reason: '' };
+  applyError.value = '';
+  applySuccess.value = '';
+  showApplyForm.value = true;
 }
 
 async function submitLeave() {
-  applyLoading.value = true
-  applyError.value = ''
-  applySuccess.value = ''
+  applyLoading.value = true;
+  applyError.value = '';
+  applySuccess.value = '';
   try {
-    const result = await leaveApi.apply(form.value)
+    const result = await leaveApi.apply(form.value);
     if (result.success) {
-      applySuccess.value = `Leave application ${result.name} submitted successfully!`
-      showApplyForm.value = false
-      await loadData()
+      applySuccess.value = `Leave application ${result.name} submitted successfully!`;
+      showApplyForm.value = false;
+      await loadData();
     } else {
-      applyError.value = result.error || 'Failed to submit'
+      applyError.value = result.error || 'Failed to submit';
     }
   } catch (e: any) {
-    applyError.value = e.message || 'Something went wrong'
+    applyError.value = e.message || 'Something went wrong';
   } finally {
-    applyLoading.value = false
+    applyLoading.value = false;
   }
 }
 
 async function cancelLeave(name: string) {
-  if (!confirm('Cancel this leave application?')) return
+  if (!confirm('Cancel this leave application?')) return;
   try {
-    const result = await leaveApi.cancel(name)
+    const result = await leaveApi.cancel(name);
     if (result.success) {
-      await loadData()
+      await loadData();
     }
   } catch (e: any) {
-    alert(e.message || 'Failed to cancel')
+    alert(e.message || 'Failed to cancel');
   }
 }
 
-onMounted(loadData)
+onMounted(loadData);
 </script>
 
 <template>

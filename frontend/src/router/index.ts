@@ -1,5 +1,5 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { createRouter, createWebHashHistory } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -34,26 +34,26 @@ const router = createRouter({
       redirect: '/',
     },
   ],
-})
+});
 
 router.beforeEach((to, _from, next) => {
-  const auth = useAuthStore()
+  const auth = useAuthStore();
 
   // Wait until auth is initialised
   if (!auth.ready) {
     // auth.init() hasn't finished yet – main.ts ensures it completes
     // before mounting, but just in case:
-    next()
-    return
+    next();
+    return;
   }
 
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
-    next({ name: 'login' })
+    next({ name: 'login' });
   } else if (to.meta.guest && auth.isLoggedIn) {
-    next({ name: 'dashboard' })
+    next({ name: 'dashboard' });
   } else {
-    next()
+    next();
   }
-})
+});
 
-export default router
+export default router;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { ref, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
 import {
   LayoutDashboard,
   Palmtree,
@@ -11,39 +11,39 @@ import {
   X,
   ChevronRight,
   ExternalLink,
-} from 'lucide-vue-next'
+} from 'lucide-vue-next';
 
-const route = useRoute()
-const router = useRouter()
-const auth = useAuthStore()
-const mobileOpen = ref(false)
+const route = useRoute();
+const router = useRouter();
+const auth = useAuthStore();
+const mobileOpen = ref(false);
 
 const navItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Leave', path: '/leave', icon: Palmtree },
   { name: 'Payroll', path: '/payroll', icon: Wallet },
-]
+];
 
 const currentNav = computed(() =>
   navItems.find(n => n.path === route.path)?.name || 'Dashboard'
-)
+);
 
 function navigate(path: string) {
-  router.push(path)
-  mobileOpen.value = false
+  router.push(path);
+  mobileOpen.value = false;
 }
 
 function goToDesk() {
-  window.location.href = '/app'
+  window.location.href = '/app';
 }
 
 const initials = computed(() => {
-  const name = auth.fullName || 'U'
-  const parts = name.split(' ')
+  const name = auth.fullName || 'U';
+  const parts = name.split(' ');
   return parts.length > 1
     ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase()
-})
+    : name.slice(0, 2).toUpperCase();
+});
 </script>
 
 <template>

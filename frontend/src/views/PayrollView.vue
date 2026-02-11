@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { payrollApi } from '../services/api'
-import { useAuthStore } from '../stores/auth'
+import { ref, onMounted, computed } from 'vue';
+import { payrollApi } from '../services/api';
+import { useAuthStore } from '../stores/auth';
 import {
   Wallet,
   Download,
@@ -10,32 +10,32 @@ import {
   Calendar,
   Banknote,
   Loader2,
-} from 'lucide-vue-next'
+} from 'lucide-vue-next';
 
-const auth = useAuthStore()
-const loading = ref(true)
+const auth = useAuthStore();
+const loading = ref(true);
 
 interface SalarySlip {
-  name: string
-  start_date: string
-  end_date: string
-  net_pay: number
-  gross_pay: number
-  month: string
-  year: number
+  name: string;
+  start_date: string;
+  end_date: string;
+  net_pay: number;
+  gross_pay: number;
+  month: string;
+  year: number;
 }
 
-const slips = ref<SalarySlip[]>([])
+const slips = ref<SalarySlip[]>([]);
 
 const totalNet = computed(() =>
   slips.value.reduce((s, sl) => s + (sl.net_pay || 0), 0)
-)
+);
 const totalGross = computed(() =>
   slips.value.reduce((s, sl) => s + (sl.gross_pay || 0), 0)
-)
+);
 const avgNet = computed(() =>
   slips.value.length ? Math.round(totalNet.value / slips.value.length) : 0
-)
+);
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -43,28 +43,28 @@ function formatCurrency(val: number) {
     currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(val)
+  }).format(val);
 }
 
 function downloadSlip(name: string) {
-  const token = auth.csrfToken || (window as any).csrf_token || ''
-  const url = payrollApi.getDownloadUrl(name)
-  window.open(url, '_blank')
+  const token = auth.csrfToken || (window as any).csrf_token || '';
+  const url = payrollApi.getDownloadUrl(name);
+  window.open(url, '_blank');
 }
 
 async function loadData() {
-  loading.value = true
+  loading.value = true;
   try {
-    const data = await payrollApi.getSlips()
-    slips.value = data || []
+    const data = await payrollApi.getSlips();
+    slips.value = data || [];
   } catch {
-    slips.value = []
+    slips.value = [];
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadData)
+onMounted(loadData);
 </script>
 
 <template>
