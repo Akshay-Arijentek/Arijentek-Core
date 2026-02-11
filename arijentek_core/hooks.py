@@ -250,29 +250,50 @@ web_include_js = "/assets/arijentek_core/js/login_redirect.js"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
-# We will override the standard login check to support Employee ID
+# ===========================================
+# ARIJENTEK CONFIGURATION
+# ===========================================
+
+# --- Login override ---
+# Supports Employee ID login + returns CSRF token for SPA.
 override_whitelisted_methods = {
-    "frappe.auth.login": "arijentek_core.auth.custom_login.login"
+	"frappe.auth.login": "arijentek_core.auth.custom_login.login",
 }
 
-# Register the route for the HTML file
+# --- Request security ---
+before_request = ["arijentek_core.security.validate_request"]
+
+# --- Audit logging ---
+doc_events = {
+	"Employee Checkin": {"on_submit": "arijentek_core.security.log_attendance_event"},
+	"Attendance": {"on_submit": "arijentek_core.security.log_attendance_event"},
+}
+
+# --- Session ---
+on_session_creation = "arijentek_core.security.on_session_created"
+
+# --- Scheduled Tasks ---
+scheduler_events = {
+	"monthly": [
+		"arijentek_core.payroll.automation.run_monthly_payroll_automation",
+	],
+}
+
+# --- Employee Portal routing ---
+# Serve the SPA from www/employee-portal.html at /employee-portal
+# The <path:app_path> wildcard ensures all sub-paths render the SPA (HTML5 history mode ready).
 website_route_rules = [
-    {"from_route": "/employee-portal", "to_route": "employee-portal"},
+	{"from_route": "/employee-portal", "to_route": "employee-portal"},
+	{"from_route": "/employee-portal/<path:app_path>", "to_route": "employee-portal"},
 ]
 
-# ✅ CORRECT HOOK for v16 - This is called when Frappe determines home page
-get_website_user_home_page = "arijentek_core.utils.get_employee_home_page"
-
-# Role-based home page (alternative approach - works together with above)
+# --- Website-user redirect ---
+# Website users (Employee role, no System Manager) → portal after login.
 role_home_page = {
-    "Employee": "/employee-portal"
+	"Employee": "/employee-portal",
 }
 
-# NOTE: Removed website_redirects - guests should see login page, not portal
+get_website_user_home_page = "arijentek_core.utils.get_employee_home_page"
 
-# Hook to redirect employees after login
-# MUST use on_session_creation (not on_login) because home_page is set AFTER on_login
-on_session_creation = "arijentek_core.utils.redirect_employee_after_login"
-
-# Hook to modify boot session data - redirects employees from desk
+# Redirect employees away from desk if they somehow get there.
 boot_session = "arijentek_core.utils.redirect_employee_on_boot"
