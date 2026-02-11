@@ -30,7 +30,7 @@ app_license = "mit"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/arijentek_core/css/arijentek_core.css"
-# web_include_js = "/assets/arijentek_core/js/arijentek_core.js"
+web_include_js = "/assets/arijentek_core/js/login_redirect.js"
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "arijentek_core/public/scss/website"
@@ -250,3 +250,50 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# ===========================================
+# ARIJENTEK CONFIGURATION
+# ===========================================
+
+# --- Login override ---
+# Supports Employee ID login + returns CSRF token for SPA.
+override_whitelisted_methods = {
+	"frappe.auth.login": "arijentek_core.auth.custom_login.login",
+}
+
+# --- Request security ---
+before_request = ["arijentek_core.security.validate_request"]
+
+# --- Audit logging ---
+doc_events = {
+	"Employee Checkin": {"on_submit": "arijentek_core.security.log_attendance_event"},
+	"Attendance": {"on_submit": "arijentek_core.security.log_attendance_event"},
+}
+
+# --- Session ---
+on_session_creation = "arijentek_core.security.on_session_created"
+
+# --- Scheduled Tasks ---
+scheduler_events = {
+	"monthly": [
+		"arijentek_core.payroll.automation.run_monthly_payroll_automation",
+	],
+}
+
+# --- Employee Portal routing ---
+# Serve the SPA from www/employee-portal.html at /employee-portal
+# The <path:app_path> wildcard ensures all sub-paths render the SPA (HTML5 history mode ready).
+website_route_rules = [
+	{"from_route": "/employee-portal", "to_route": "employee-portal"},
+	{"from_route": "/employee-portal/<path:app_path>", "to_route": "employee-portal"},
+]
+
+# --- Website-user redirect ---
+# Website users (Employee role, no System Manager) → portal after login.
+role_home_page = {
+	"Employee": "/employee-portal",
+}
+
+get_website_user_home_page = "arijentek_core.utils.get_employee_home_page"
+
+# Redirect employees away from desk if they somehow get there.
+boot_session = "arijentek_core.utils.redirect_employee_on_boot"
