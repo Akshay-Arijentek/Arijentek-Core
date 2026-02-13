@@ -6,6 +6,7 @@ interface SessionInfo {
   full_name: string;
   is_logged_in: boolean;
   has_desk_access: boolean;
+  has_payroll_permission?: boolean;
   employee: string | null;
   employee_name: string;
   department: string;
@@ -46,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
   const fullName = ref('Guest');
   const csrfToken = ref('');
   const hasDeskAccess = ref(false);
+  const hasPayrollPermission = ref(false);
   const employee = ref<string | null>(null);
   const employeeName = ref('');
   const department = ref('');
@@ -76,6 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = info.user;
         fullName.value = info.full_name || info.user;
         hasDeskAccess.value = info.has_desk_access;
+        hasPayrollPermission.value = info.has_payroll_permission ?? false;
         employee.value = info.employee;
         employeeName.value = info.employee_name || '';
         department.value = info.department || '';
@@ -138,6 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
           user.value = info.user;
           fullName.value = info.full_name || msg.full_name || usr;
           hasDeskAccess.value = info.has_desk_access;
+          hasPayrollPermission.value = info.has_payroll_permission ?? false;
           employee.value = info.employee;
           employeeName.value = info.employee_name || '';
           department.value = info.department || '';
@@ -187,6 +191,7 @@ export const useAuthStore = defineStore('auth', () => {
     fullName.value = 'Guest';
     csrfToken.value = '';
     hasDeskAccess.value = false;
+    hasPayrollPermission.value = false;
     employee.value = null;
     employeeName.value = '';
     department.value = '';
@@ -199,6 +204,7 @@ export const useAuthStore = defineStore('auth', () => {
     fullName,
     csrfToken,
     hasDeskAccess,
+    hasPayrollPermission,
     employee,
     employeeName,
     department,

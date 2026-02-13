@@ -20,7 +20,14 @@ const loading = ref(true);
 const balance = ref<{ leave_type: string; balance: number }[]>([]);
 const applications = ref<any[]>([]);
 const leaveTypes = ref<string[]>([]);
+const holidays = ref<{ holiday_date: string; description: string; weekly_off?: number }[]>([]);
 const manager = ref<any>(null);
+
+// Holidays month filter: "YYYY-MM" or "" for all. Default: current month
+const _today = new Date();
+const holidaysMonthFilter = ref<string>(
+  `${_today.getFullYear()}-${String(_today.getMonth() + 1).padStart(2, '0')}`
+);
 
 // Apply form
 const showApplyForm = ref(false);
@@ -38,6 +45,30 @@ const form = ref({
 const totalBalance = computed(() =>
   balance.value.reduce((s, b) => s + b.balance, 0)
 );
+
+// Month options for holidays filter (current year + next year)
+const holidaysMonthOptions = computed(() => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const opts: { value: string; label: string }[] = [
+    { value: '', label: 'All months' },
+  ];
+  for (let y = year; y <= year + 1; y++) {
+    for (let m = 1; m <= 12; m++) {
+      const value = `${y}-${String(m).padStart(2, '0')}`;
+      const d = new Date(y, m - 1, 1);
+      opts.push({ value, label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) });
+    }
+  }
+  return opts;
+});
+
+// Holidays filtered by selected month
+const filteredHolidays = computed(() => {
+  const list = holidays.value;
+  if (!holidaysMonthFilter.value) return list;
+  return list.filter((h) => h.holiday_date.startsWith(holidaysMonthFilter.value));
+});
 
 // Colors for leave types
 const typeColors = [
@@ -73,19 +104,30 @@ function statusIcon(status: string) {
   return m[status] || Clock;
 }
 
+function getDefaultDateRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const from = `${year}-01-01`;
+  const to = `${year}-12-31`;
+  return { from, to };
+}
+
 async function loadData() {
   loading.value = true;
   try {
-    const [bal, apps, types, mgr] = await Promise.allSettled([
+    const { from, to } = getDefaultDateRange();
+    const [bal, apps, types, mgr, hols] = await Promise.allSettled([
       leaveApi.getBalance(),
       leaveApi.getApplications(),
       leaveApi.getTypes(),
       dashboardApi.getReportingInfo(),
+      leaveApi.getHolidays(from, to, true),
     ]);
-    if (bal.status === 'fulfilled') balance.value = bal.value || [];
-    if (apps.status === 'fulfilled') applications.value = apps.value || [];
-    if (types.status === 'fulfilled') leaveTypes.value = types.value || [];
+    if (bal.status === 'fulfilled') balance.value = Array.isArray(bal.value) ? bal.value : [];
+    if (apps.status === 'fulfilled') applications.value = Array.isArray(apps.value) ? apps.value : [];
+    if (types.status === 'fulfilled') leaveTypes.value = Array.isArray(types.value) ? types.value : [];
     if (mgr.status === 'fulfilled') manager.value = mgr.value;
+    if (hols.status === 'fulfilled') holidays.value = Array.isArray(hols.value) ? hols.value : [];
   } finally {
     loading.value = false;
   }
@@ -180,10 +222,53 @@ onMounted(loadData);
       </div>
     </div>
 
+    <!-- Holidays (from ERPNext Holiday List) -->
+    <div v-if="holidays.length" class="glass-card p-5">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div>
+          <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Company Holidays</h3>
+          <p class="text-xs text-slate-500 mt-1">Holidays from your assigned Holiday List in ERPNext</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <label class="text-xs text-slate-500 whitespace-nowrap">Filter by month:</label>
+          <div class="relative">
+            <select v-model="holidaysMonthFilter"
+              class="input-dark appearance-none pr-8 pl-3 py-2 text-sm cursor-pointer min-w-[160px] border border-white/10 rounded-lg">
+              <option v-for="opt in holidaysMonthOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <ChevronDown :size="14" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+        </div>
+      </div>
+      <div class="relative">
+        <div class="holidays-scroll grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto overflow-x-hidden"
+          style="scrollbar-width: thin; scrollbar-color: rgb(71 85 105) rgba(255,255,255,0.03);">
+          <div v-for="h in filteredHolidays" :key="h.holiday_date"
+            class="flex items-center gap-3 py-2 px-3 rounded-lg bg-white/[0.03] border border-white/[0.04]">
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+              <Calendar :size="18" :stroke-width="1.8" />
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-white">
+                {{ new Date(h.holiday_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
+              </p>
+              <p class="text-xs text-slate-500 truncate">{{ h.description || 'Holiday' }}</p>
+            </div>
+          </div>
+        </div>
+        <p v-if="filteredHolidays.length === 0" class="text-sm text-slate-500 py-6 text-center">
+          No holidays in selected month
+        </p>
+      </div>
+    </div>
+
     <!-- Leave Balance Cards -->
     <div>
       <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Leave Balance</h3>
-      <div v-if="balance.length" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <p class="text-xs text-slate-500 mb-4">Casual Leave, Sick Leave, Earned Leave (1 per 20 working days), Regional Holidays</p>
+      <div v-if="balance.length" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div v-for="(b, idx) in balance" :key="b.leave_type"
           class="glass-card-hover p-5 ring-1" :class="getTypeColor(idx).ring">
           <p class="text-sm font-medium text-slate-400 mb-2 truncate" :title="b.leave_type">
@@ -294,15 +379,19 @@ onMounted(loadData);
         </div>
 
         <form @submit.prevent="submitLeave" class="space-y-4">
-          <!-- Leave Type -->
+          <!-- Leave Type (from ERPNext) -->
           <div>
             <label class="block text-sm font-medium text-slate-400 mb-1.5">Leave Type</label>
             <div class="relative">
-              <select v-model="form.leave_type" class="input-dark appearance-none pr-10 cursor-pointer">
+              <select v-model="form.leave_type" class="input-dark appearance-none pr-10 cursor-pointer"
+                :disabled="!leaveTypes.length">
+                <option value="" disabled>Select leave type</option>
                 <option v-for="t in leaveTypes" :key="t" :value="t">{{ t }}</option>
+                <option v-if="!leaveTypes.length" value="" disabled>No leave types in ERPNext</option>
               </select>
               <ChevronDown :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             </div>
+            <p v-if="leaveTypes.length" class="text-xs text-slate-500 mt-1">Leave types from ERPNext</p>
           </div>
 
           <!-- Dates -->

@@ -184,6 +184,30 @@
     color: #94a3b8;
   }
 
+  /* Holidays scroll - scrollbar in gutter outside content */
+  .holidays-scroll {
+    scrollbar-gutter: stable;
+  }
+
+  .holidays-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .holidays-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    margin: 4px 0;
+  }
+
+  .holidays-scroll::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.6);
+    border-radius: 4px;
+  }
+
+  .holidays-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.9);
+  }
+
   /* Stat card number */
   .stat-number {
     @apply text-3xl font-bold tracking-tight;

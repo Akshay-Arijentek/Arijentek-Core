@@ -64,7 +64,7 @@ export const attendanceApi = {
   getStatus: () => get('arijentek_core.api.v1.attendance.get_status'),
   getSummary: () => get('arijentek_core.api.get_attendance_summary'),
   getRecords: (month?: number, year?: number) =>
-    get(`arijentek_core.api.v1.attendance.get_attendance_records${month && year ? `?month=${month}&year=${year}` : ''}`),
+    get(`arijentek_core.api.get_attendance_records${month && year ? `?month=${month}&year=${year}` : ''}`),
 };
 
 // ---------- Leave ----------
@@ -72,6 +72,17 @@ export const leaveApi = {
   getTypes: () => get('arijentek_core.api.get_leave_types'),
   getBalance: () => get('arijentek_core.api.get_leave_balance'),
   getApplications: () => get('arijentek_core.api.get_leave_applications'),
+  getHolidays: (from_date?: string, to_date?: string, exclude_weekly_off?: boolean) => {
+    const params: string[] = [];
+    if (from_date && to_date) {
+      params.push(`from_date=${from_date}`, `to_date=${to_date}`);
+    }
+    if (exclude_weekly_off) {
+      params.push('exclude_weekly_off=1');
+    }
+    const qs = params.length ? `?${params.join('&')}` : '';
+    return get(`arijentek_core.api.get_holidays${qs}`);
+  },
   apply: (data: {
     leave_type: string;
     from_date: string;
@@ -88,4 +99,6 @@ export const payrollApi = {
   getSlips: () => get('arijentek_core.api.get_salary_slips'),
   getDownloadUrl: (name: string) =>
     `/api/method/arijentek_core.api.download_payslip?name=${encodeURIComponent(name)}`,
+  generatePayroll: (month?: number, year?: number) =>
+    post('arijentek_core.api.generate_payroll', { month, year }),
 };

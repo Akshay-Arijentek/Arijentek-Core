@@ -44,9 +44,15 @@ def sync_attendance_from_checkins(employee=None, date=None):
 	frappe.msgprint(_("Created/Updated {0} attendance records").format(created_count))
 
 
-def create_or_update_attendance(employee, date, checkins):
+def create_or_update_attendance(employee, date, checkins, auto_commit=True):
 	"""
-	Create or update attendance based on checkins
+	Create or update attendance based on checkins.
+
+	Args:
+		employee: Employee ID
+		date: Attendance date
+		checkins: List of Employee Checkin records for the day
+		auto_commit: Whether to commit after changes (set False when called from hooks)
 	"""
 	existing = frappe.db.exists(
 		"Attendance", {"employee": employee, "attendance_date": date, "docstatus": ["!=", 2]}
@@ -69,11 +75,13 @@ def create_or_update_attendance(employee, date, checkins):
 
 	if existing:
 		attendance = frappe.get_doc("Attendance", existing)
+		attendance.status = status
 		attendance.working_hours = round(working_hours, 2)
 		attendance.in_time = first_in.time
 		attendance.out_time = last_out.time if last_out else None
-		attendance.save()
-		frappe.db.commit()
+		attendance.save(ignore_permissions=True)
+		if auto_commit:
+			frappe.db.commit()
 	else:
 		attendance = frappe.new_doc("Attendance")
 		attendance.update(
@@ -86,21 +94,52 @@ def create_or_update_attendance(employee, date, checkins):
 				"out_time": last_out.time if last_out else None,
 			}
 		)
-		attendance.insert()
+		attendance.insert(ignore_permissions=True)
 		attendance.submit()
-		frappe.db.commit()
+		if auto_commit:
+			frappe.db.commit()
 
 	return attendance.name
 
 
 def determine_attendance_status(employee, date, working_hours, first_in):
 	"""
-	Determine attendance status based on shift settings
+	Determine attendance status based on shift settings and approved leave.
+
+	Logic:
+	  - working_hours < absent_threshold (default 2) → Absent
+	  - working_hours >= absent_threshold but < half_day_threshold (default 4) → Half Day
+	  - working_hours >= half_day_threshold but < full_day_threshold (default 8) → Half Day
+	  - working_hours >= full_day_threshold → Present
+
+	If the employee has an approved half-day leave for this date, the status
+	is set to "Half Day" (not Absent / LOP) regardless of hours worked,
+	so no LOP is deducted.
 	"""
+	# Check for approved half-day leave on this date
+	has_approved_half_day_leave = frappe.db.exists(
+		"Leave Application",
+		{
+			"employee": employee,
+			"half_day": 1,
+			"status": "Approved",
+			"docstatus": 1,
+			"from_date": ["<=", date],
+			"to_date": [">=", date],
+		},
+	)
+
 	shift_type = frappe.db.get_value("Employee", employee, "default_shift")
 
 	if not shift_type:
-		return "Present" if working_hours > 0 else "Absent"
+		# No shift assigned — use simple thresholds
+		if has_approved_half_day_leave:
+			return "Half Day"
+		if working_hours >= 4:
+			return "Present"
+		elif working_hours > 0:
+			return "Half Day"
+		return "Absent"
 
 	shift = frappe.get_doc("Shift Type", shift_type)
 
@@ -120,6 +159,10 @@ def determine_attendance_status(employee, date, working_hours, first_in):
 
 	half_day_threshold = getattr(shift, "working_hours_threshold_for_half_day", 4) or 4
 	absent_threshold = getattr(shift, "working_hours_threshold_for_absent", 2) or 2
+
+	# If approved half-day leave exists, mark as Half Day (no LOP)
+	if has_approved_half_day_leave:
+		return "Half Day"
 
 	if working_hours < absent_threshold:
 		return "Absent"

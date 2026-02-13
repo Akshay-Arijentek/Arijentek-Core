@@ -11,22 +11,22 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "arijentek_core",
-# 		"logo": "/assets/arijentek_core/logo.png",
-# 		"title": "Arijentek Solution",
-# 		"route": "/arijentek_core",
-# 		"has_permission": "arijentek_core.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "employee-portal",
+		"logo": "/assets/arijentek_core/images/portal-icon.svg",
+		"title": "Employee Portal",
+		"route": "/employee-portal",
+		"has_permission": "arijentek_core.utils.has_portal_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/arijentek_core/css/arijentek_core.css"
-# app_include_js = "/assets/arijentek_core/js/arijentek_core.js"
+app_include_js = "/assets/arijentek_core/js/portal_desk_button.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/arijentek_core/css/arijentek_core.css"
@@ -86,7 +86,8 @@ web_include_js = "/assets/arijentek_core/js/login_redirect.js"
 # ------------
 
 # before_install = "arijentek_core.install.before_install"
-# after_install = "arijentek_core.install.after_install"
+after_install = "arijentek_core.install.after_install"
+after_migrate = "arijentek_core.install.after_migrate"
 
 # Uninstallation
 # ------------
@@ -265,7 +266,10 @@ before_request = ["arijentek_core.security.validate_request"]
 
 # --- Audit logging ---
 doc_events = {
-	"Employee Checkin": {"on_submit": "arijentek_core.security.log_attendance_event"},
+	"Employee Checkin": {
+		"on_submit": "arijentek_core.security.log_attendance_event",
+		"after_insert": "arijentek_core.attendance.auto_attendance.on_employee_checkin_insert",
+	},
 	"Attendance": {"on_submit": "arijentek_core.security.log_attendance_event"},
 }
 
@@ -287,13 +291,10 @@ website_route_rules = [
 	{"from_route": "/employee-portal/<path:app_path>", "to_route": "employee-portal"},
 ]
 
-# --- Website-user redirect ---
-# Website users (Employee role, no System Manager) → portal after login.
+# --- Post-login redirect: ALL users land on Employee Portal first ---
 role_home_page = {
 	"Employee": "/employee-portal",
+	"System Manager": "/employee-portal",
 }
-
 get_website_user_home_page = "arijentek_core.utils.get_employee_home_page"
-
-# Redirect employees away from desk if they somehow get there.
 boot_session = "arijentek_core.utils.redirect_employee_on_boot"

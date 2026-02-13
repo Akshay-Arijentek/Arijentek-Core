@@ -17,6 +17,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/attendance',
+      name: 'attendance',
+      component: () => import('../views/AttendanceView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/leave',
       name: 'leave',
       component: () => import('../views/LeaveView.vue'),
