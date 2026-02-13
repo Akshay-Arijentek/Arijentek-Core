@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import {
   LayoutDashboard,
+  CalendarCheck,
   Palmtree,
   Wallet,
   LogOut,
@@ -20,6 +21,7 @@ const mobileOpen = ref(false);
 
 const navItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Attendance', path: '/attendance', icon: CalendarCheck },
   { name: 'Leave', path: '/leave', icon: Palmtree },
   { name: 'Payroll', path: '/payroll', icon: Wallet },
 ];

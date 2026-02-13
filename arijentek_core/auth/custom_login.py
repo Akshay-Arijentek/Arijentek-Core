@@ -25,16 +25,8 @@ def login(usr, pwd):
 	login_manager.authenticate(user=actual_usr, pwd=pwd)
 	login_manager.post_login()
 
-	# 3. Determine Post-Login Redirect
-	user = frappe.session.user
-	roles = frappe.get_roles(user)
-
-	if "Employee" in roles and "System Manager" not in roles:
-		home_page = "/employee-portal"
-	else:
-		from frappe.apps import get_default_path
-
-		home_page = get_default_path() or "/desk"
+	# 3. Post-Login Redirect: EVERY user lands on Employee Portal first
+	home_page = "/employee-portal"
 
 	# 4. Generate response with CSRF Token for subsequent requests
 	csrf_token = frappe.sessions.get_csrf_token()

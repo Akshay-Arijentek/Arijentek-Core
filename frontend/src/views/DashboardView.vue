@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   CalendarX,
   CalendarClock,
+  CalendarHeart,
   Palmtree,
   Wallet,
   ArrowRight,
@@ -27,6 +28,7 @@ interface DashData {
   current_month: string;
   year: number;
   attendance_summary: Record<string, number>;
+  leave_type_breakdown?: Record<string, number>;
   last_punch: { log_type: string; time: string } | null;
 }
 
@@ -52,18 +54,42 @@ const today = computed(() =>
 
 const stats = computed(() => {
   const s = dash.value?.attendance_summary || {};
-  return [
+  const items = [
     { label: 'Present', value: s['Present'] || 0, icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
     { label: 'Absent', value: s['Absent'] || 0, icon: CalendarX, color: 'text-red-400', bg: 'bg-red-500/10' },
     { label: 'Half Day', value: s['Half Day'] || 0, icon: CalendarClock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   ];
+  // Show "On Leave" stat with leave-type breakdown
+  const onLeave = s['On Leave'] || 0;
+  if (onLeave > 0) {
+    const breakdown = dash.value?.leave_type_breakdown || {};
+    const typeNames = Object.keys(breakdown);
+    const subtitle = typeNames.length ? typeNames.join(', ') : '';
+    items.push({
+      label: subtitle || 'On Leave',
+      value: onLeave,
+      icon: CalendarHeart,
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10',
+    });
+  }
+  return items;
 });
 
 const totalLeave = computed(() =>
   leaveBalance.value.reduce((sum, b) => sum + b.balance, 0)
 );
 
+let loadInProgress = false;
+let lastLoadTime = 0;
+const MIN_LOAD_INTERVAL_MS = 2000;
+
 async function loadDashboard() {
+  const now = Date.now();
+  if (loadInProgress) return;
+  if (lastLoadTime > 0 && now - lastLoadTime < MIN_LOAD_INTERVAL_MS) return;
+  loadInProgress = true;
+  lastLoadTime = now;
   loading.value = true;
   try {
     const [dashData, leaves, apps] = await Promise.allSettled([
@@ -71,11 +97,21 @@ async function loadDashboard() {
       leaveApi.getBalance(),
       leaveApi.getApplications(),
     ]);
-    if (dashData.status === 'fulfilled') dash.value = dashData.value;
-    if (leaves.status === 'fulfilled') leaveBalance.value = leaves.value || [];
-    if (apps.status === 'fulfilled') recentLeaves.value = (apps.value || []).slice(0, 3);
+    if (dashData.status === 'fulfilled' && dashData.value && !dashData.value.error) {
+      dash.value = dashData.value;
+    } else if (dashData.status === 'fulfilled' && dashData.value?.error) {
+      dash.value = null;
+    }
+    if (leaves.status === 'fulfilled') {
+      leaveBalance.value = Array.isArray(leaves.value) ? leaves.value : [];
+    }
+    if (apps.status === 'fulfilled') {
+      const list = Array.isArray(apps.value) ? apps.value : [];
+      recentLeaves.value = list.slice(0, 3);
+    }
   } finally {
     loading.value = false;
+    loadInProgress = false;
   }
 }
 
@@ -102,26 +138,23 @@ onMounted(loadDashboard);
     <p class="text-sm text-slate-500 mt-1">{{ today }}</p>
   </div>
 
-  <!-- Loading skeleton -->
+  <!-- Clock Widget: always mounted (avoids unmount/remount loop when loadDashboard runs) -->
+  <div class="glass-card p-6 sm:p-8 lg:row-span-2 flex flex-col items-center justify-center mb-6">
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6">Attendance</h2>
+    <ClockWidget @punched="loadDashboard" />
+  </div>
+
+  <!-- Loading skeleton (stats/leave only; ClockWidget stays mounted above) -->
   <div v-if="loading" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="glass-card p-8 lg:row-span-2 flex items-center justify-center">
-      <div class="w-12 h-12 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-    </div>
     <div v-for="i in 4" :key="i" class="glass-card p-6 animate-pulse">
       <div class="h-4 bg-white/5 rounded w-20 mb-3" />
       <div class="h-8 bg-white/5 rounded w-12" />
     </div>
   </div>
 
-  <!-- Dashboard content -->
+  <!-- Dashboard content (stats, leave, profile, etc.) -->
   <div v-else class="space-y-6 animate-slide-up">
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Clock Widget Card -->
-      <div class="glass-card p-6 sm:p-8 lg:row-span-2 flex flex-col items-center justify-center">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6">Attendance</h2>
-        <ClockWidget @punched="loadDashboard" />
-      </div>
-
       <!-- Stats -->
       <div v-for="stat in stats" :key="stat.label" class="glass-card-hover p-5">
         <div class="flex items-center justify-between mb-3">

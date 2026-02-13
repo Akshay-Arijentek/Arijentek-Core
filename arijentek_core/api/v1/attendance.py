@@ -1,25 +1,49 @@
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, nowdate
 from frappe.rate_limiter import rate_limit
 
 ATTENDANCE_RATE_LIMIT = 10
 ATTENDANCE_RATE_LIMIT_SECONDS = 60
+MAX_SHIFT_HOURS = 12
 
 
 @frappe.whitelist()
 @rate_limit(limit=ATTENDANCE_RATE_LIMIT, seconds=ATTENDANCE_RATE_LIMIT_SECONDS)
 def punch(employee=None, timestamp=None):
+	"""Punch endpoint with enforcement: one IN + one OUT per day, 12hr max."""
 	employee = _validate_and_get_employee(employee)
 	timestamp = _validate_timestamp(timestamp)
+	today = nowdate()
 
-	last_checkin = frappe.db.get_all(
-		"Employee Checkin", filters={"employee": employee}, fields=["log_type"], order_by="time desc", limit=1
+	# Get today's checkins
+	today_checkins = frappe.db.sql(
+		"""
+		SELECT time, log_type FROM `tabEmployee Checkin`
+		WHERE employee = %s AND DATE(time) = %s
+		ORDER BY time ASC
+		""",
+		(employee, today),
+		as_dict=True,
 	)
 
-	log_type = "IN"
-	if last_checkin and last_checkin[0].get("log_type") == "IN":
+	has_in = any(c.log_type == "IN" for c in today_checkins)
+	has_out = any(c.log_type == "OUT" for c in today_checkins)
+
+	if has_in and has_out:
+		frappe.throw(_("You have already clocked in and out today"))
+
+	if not has_in:
+		log_type = "IN"
+	elif has_in and not has_out:
 		log_type = "OUT"
+		# Enforce max shift duration
+		in_time = next(c.time for c in today_checkins if c.log_type == "IN")
+		hours_worked = (timestamp - in_time).total_seconds() / 3600
+		if hours_worked > MAX_SHIFT_HOURS:
+			frappe.throw(_(f"Shift exceeded {MAX_SHIFT_HOURS} hours. Please contact HR."))
+	else:
+		frappe.throw(_("Invalid state"))
 
 	checkin = frappe.get_doc(
 		{
@@ -32,6 +56,10 @@ def punch(employee=None, timestamp=None):
 	)
 	checkin.insert()
 	frappe.db.commit()
+
+	# Auto-sync attendance after punch
+	from arijentek_core.attendance.auto_attendance import sync_attendance_after_clock
+	sync_attendance_after_clock(employee, timestamp)
 
 	return {"status": "success", "log_type": log_type, "time": str(timestamp), "employee": employee}
 
