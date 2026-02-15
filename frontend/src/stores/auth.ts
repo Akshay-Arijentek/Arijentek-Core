@@ -11,6 +11,7 @@ interface SessionInfo {
   employee_name: string;
   department: string;
   designation: string;
+  is_manager?: boolean;
 }
 
 /**
@@ -48,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
   const csrfToken = ref('');
   const hasDeskAccess = ref(false);
   const hasPayrollPermission = ref(false);
+  const isManager = ref(false);
   const employee = ref<string | null>(null);
   const employeeName = ref('');
   const department = ref('');
@@ -70,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Fetch CSRF token first (always needed)
       const token = await fetchCsrfToken();
       csrfToken.value = token;
-      ;(window as any).csrf_token = token;
+      ; (window as any).csrf_token = token;
 
       // Fetch session info to know who we are
       const info = await fetchSessionInfo();
@@ -79,6 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
         fullName.value = info.full_name || info.user;
         hasDeskAccess.value = info.has_desk_access;
         hasPayrollPermission.value = info.has_payroll_permission ?? false;
+        isManager.value = !!info.is_manager;
         employee.value = info.employee;
         employeeName.value = info.employee_name || '';
         department.value = info.department || '';
@@ -109,7 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
       // Ensure we have a CSRF token
       if (!csrfToken.value) {
         csrfToken.value = await fetchCsrfToken();
-        ;(window as any).csrf_token = csrfToken.value;
+        ; (window as any).csrf_token = csrfToken.value;
       }
 
       const res = await fetch('/api/method/arijentek_core.api.v1.auth.login', {
@@ -132,7 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
         const newToken = msg.csrf_token || data.csrf_token;
         if (newToken) {
           csrfToken.value = newToken;
-          ;(window as any).csrf_token = newToken;
+          ; (window as any).csrf_token = newToken;
         }
 
         // Fetch full session info now that we're logged in
@@ -142,6 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
           fullName.value = info.full_name || msg.full_name || usr;
           hasDeskAccess.value = info.has_desk_access;
           hasPayrollPermission.value = info.has_payroll_permission ?? false;
+          isManager.value = !!info.is_manager;
           employee.value = info.employee;
           employeeName.value = info.employee_name || '';
           department.value = info.department || '';
@@ -192,11 +196,12 @@ export const useAuthStore = defineStore('auth', () => {
     csrfToken.value = '';
     hasDeskAccess.value = false;
     hasPayrollPermission.value = false;
+    isManager.value = false;
     employee.value = null;
     employeeName.value = '';
     department.value = '';
     designation.value = '';
-    ;(window as any).csrf_token = '';
+    ; (window as any).csrf_token = '';
   }
 
   return {
@@ -205,6 +210,7 @@ export const useAuthStore = defineStore('auth', () => {
     csrfToken,
     hasDeskAccess,
     hasPayrollPermission,
+    isManager,
     employee,
     employeeName,
     department,

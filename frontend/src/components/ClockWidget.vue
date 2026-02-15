@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { useOfflineStore } from '../stores/offline';
 import { attendanceApi } from '../services/api';
+import { WifiOff } from 'lucide-vue-next';
 
 const auth = useAuthStore();
+const offlineStore = useOfflineStore();
 const loading = ref(false);
 const error = ref('');
 const isClockedIn = ref(false);
@@ -120,6 +123,23 @@ async function handlePunch() {
   loading.value = true;
   error.value = '';
   try {
+    // Offline check
+    if (!navigator.onLine) {
+      offlineStore.addPunch();
+      loading.value = false;
+      // Optimistic update
+      if (isClockedIn.value) {
+        isClockedIn.value = false;
+        isCompleted.value = true;
+        stopTimer();
+      } else {
+        isClockedIn.value = true;
+        clockInTime.value = new Date();
+        startTimer();
+      }
+      return;
+    }
+
     const result = await attendanceApi.punch();
     if (result.status === 'success') {
       if (result.log_type === 'IN') {
@@ -145,8 +165,22 @@ async function handlePunch() {
   }
 }
 
-onMounted(fetchStatus);
-onUnmounted(stopTimer);
+onMounted(() => {
+  fetchStatus();
+  // Listen for online to sync
+  window.addEventListener('online', offlineStore.sync);
+  setInterval(() => {
+    // Periodic sync attempt if we have pending and are online
+    if (navigator.onLine && offlineStore.pendingPunches.length) {
+      offlineStore.sync();
+    }
+  }, 60000);
+});
+
+onUnmounted(() => {
+  stopTimer();
+  window.removeEventListener('online', offlineStore.sync);
+});
 
 const emit = defineEmits<{ punched: [] }>();
 
@@ -154,6 +188,14 @@ const emit = defineEmits<{ punched: [] }>();
 
 <template>
   <div class="flex flex-col items-center">
+
+    <!-- Offline Indicator -->
+    <div v-if="offlineStore.pendingPunches.length > 0" 
+         class="mb-4 px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-xs font-medium flex items-center gap-2 animate-pulse">
+      <WifiOff :size="12" />
+      {{ offlineStore.pendingPunches.length }} Pending Punch{{ offlineStore.pendingPunches.length !== 1 ? 'es' : '' }}
+    </div>
+
     <!-- SVG Clock Ring -->
     <div class="relative mb-6">
       <svg width="200" height="200" class="transform -rotate-90">

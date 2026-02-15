@@ -50,6 +50,49 @@ function post<T = any>(endpoint: string, body?: any) {
   });
 }
 
+// Caching helper — TTL: 1 hour
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+export async function useCachedFetch<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  onData: (data: T) => void
+) {
+  // 1. Try cache (with expiry check)
+  const cached = localStorage.getItem(`cache_${key}`);
+  if (cached) {
+    try {
+      const { data, timestamp } = JSON.parse(cached);
+      const isExpired = Date.now() - timestamp > CACHE_TTL_MS;
+      if (!isExpired) {
+        onData(data);
+      } else {
+        // Remove stale cache
+        localStorage.removeItem(`cache_${key}`);
+      }
+    } catch (e) {
+      console.warn('Cache parse error', key);
+      localStorage.removeItem(`cache_${key}`);
+    }
+  }
+
+  // 2. Fetch fresh
+  try {
+    const freshData = await fetcher();
+    onData(freshData);
+    // 3. Update cache
+    localStorage.setItem(`cache_${key}`, JSON.stringify({
+      data: freshData,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    console.error('Fetch failed', key, e);
+    // If we had no cache, propagate error? Or just silent fail?
+    // user wants "offline" behavior, so silent fail if we have cache is good.
+    if (!cached) throw e;
+  }
+}
+
 // ---------- Dashboard ----------
 export const dashboardApi = {
   getData: () => get('arijentek_core.api.get_dashboard_data'),
@@ -59,7 +102,7 @@ export const dashboardApi = {
 
 // ---------- Attendance / Clock ----------
 export const attendanceApi = {
-  punch: () => post('arijentek_core.api.punch'),
+  punch: (timestamp?: string) => post('arijentek_core.api.punch', { timestamp }),
   getTodayCheckin: () => get('arijentek_core.api.get_today_checkin'),
   getStatus: () => get('arijentek_core.api.v1.attendance.get_status'),
   getSummary: () => get('arijentek_core.api.get_attendance_summary'),
@@ -101,4 +144,34 @@ export const payrollApi = {
     `/api/method/arijentek_core.api.download_payslip?name=${encodeURIComponent(name)}`,
   generatePayroll: (month?: number, year?: number) =>
     post('arijentek_core.api.generate_payroll', { month, year }),
+  getSlipDetails: (name: string) =>
+    get(`arijentek_core.api.get_payslip_details?name=${encodeURIComponent(name)}`),
+  getPreview: (month?: number, year?: number) =>
+    get(`arijentek_core.api.get_payroll_preview${month && year ? `?month=${month}&year=${year}` : ''}`),
+  getDashboard: () => get('arijentek_core.api.get_payroll_dashboard'),
+  generateMyPayslip: (month?: number, year?: number) =>
+    post('arijentek_core.api.generate_my_payslip', { month, year }),
+  deletePayslip: (name: string) =>
+    post('arijentek_core.api.delete_my_payslip', { name }),
+};
+
+export const managerApi = {
+  getTeamLeaves: () => get('arijentek_core.api.get_team_leaves'),
+  processLeave: (application: string, status: 'Approved' | 'Rejected') =>
+    post('arijentek_core.api.process_leave', { leave_application: application, status })
+};
+
+export const authApi = {
+  changePassword: (oldPw: string, newPw: string) =>
+    post('arijentek_core.api.auth.change_password', { old_password: oldPw, new_password: newPw })
+};
+
+export const expensesApi = {
+  getTypes: () => get('arijentek_core.api.expenses.get_expense_types'),
+  getMyExpenses: () => get('arijentek_core.api.expenses.get_my_expenses'),
+  submit: (data: any) => post('arijentek_core.api.expenses.submit_expense_claim', data),
+  // Manager
+  getTeamExpenses: () => get('arijentek_core.api.expenses.get_team_expenses'),
+  process: (name: string, action: 'Approve' | 'Reject') =>
+    post('arijentek_core.api.expenses.process_expense', { name, action })
 };

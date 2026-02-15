@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import nowdate, now_datetime, getdate, get_first_day, get_last_day, flt
+from frappe.rate_limiter import rate_limit
 from datetime import datetime, timedelta
 
 # ============ DASHBOARD ============
@@ -11,7 +12,18 @@ def get_dashboard_data():
 	"""Get all dashboard data in one call"""
 	employee = get_current_employee()
 	if not employee:
-		return {"error": "Employee not found"}
+		# Return empty structure for non-employees (e.g. Administrator)
+		return {
+			"employee": "",
+			"employee_name": frappe.session.user,
+			"department": "",
+			"designation": "",
+			"current_month": getdate(nowdate()).strftime("%B"),
+			"year": getdate(nowdate()).year,
+			"last_punch": None,
+			"attendance_summary": {"Present": 0, "Absent": 0, "Half Day": 0, "On Leave": 0},
+			"leave_type_breakdown": {},
+		}
 
 	today = nowdate()
 	current_month = getdate(today).strftime("%B")
@@ -78,11 +90,17 @@ def get_dashboard_data():
 	)
 	leave_type_breakdown = {r.leave_type: r.count for r in on_leave_types}
 
+	emp_info = frappe.db.get_value(
+		"Employee", employee,
+		["employee_name", "department", "designation"],
+		as_dict=True
+	) or {}
+
 	return {
 		"employee": employee,
-		"employee_name": frappe.db.get_value("Employee", employee, "employee_name"),
-		"department": frappe.db.get_value("Employee", employee, "department"),
-		"designation": frappe.db.get_value("Employee", employee, "designation"),
+		"employee_name": emp_info.get("employee_name", ""),
+		"department": emp_info.get("department", ""),
+		"designation": emp_info.get("designation", ""),
 		"current_month": current_month,
 		"year": year,
 		"last_punch": last_punch,
@@ -130,7 +148,7 @@ def get_today_checkin():
 	"""
 	employee = get_current_employee()
 	if not employee:
-		return {"error": "Employee not found"}
+		return {"clock_in": None, "clock_out": None, "completed": False}
 
 	today = nowdate()
 
@@ -166,6 +184,7 @@ def get_today_checkin():
 
 
 @frappe.whitelist()
+@rate_limit(limit=10, seconds=60)
 def clock_in():
 	"""Record clock in (once per day only) and auto-mark attendance"""
 	employee = get_current_employee()
@@ -199,6 +218,7 @@ def clock_in():
 
 
 @frappe.whitelist()
+@rate_limit(limit=10, seconds=60)
 def clock_out():
 	"""Record clock out (must have clocked in first, once per day) and auto-mark attendance"""
 	employee = get_current_employee()
@@ -252,7 +272,8 @@ def clock_out():
 
 
 @frappe.whitelist()
-def punch():
+@rate_limit(limit=10, seconds=60)
+def punch(timestamp=None):
 	"""Unified punch endpoint — one clock-in and one clock-out per day.
 
 	Rules:
@@ -262,20 +283,34 @@ def punch():
 	  - Cannot clock out without clocking in first
 	  - Max shift duration: MAX_SHIFT_HOURS (12 hours)
 	"""
+	from frappe.utils import get_datetime
+
 	employee = get_current_employee()
 	if not employee:
 		return {"status": "error", "error": "Employee not found"}
 
-	today = nowdate()
+	# Determine punch time
+	if timestamp:
+		try:
+			punch_time = get_datetime(timestamp)
+			# Prevent future punches
+			if punch_time > now_datetime():
+				return {"status": "error", "error": "Cannot punch in the future"}
+		except Exception:
+			return {"status": "error", "error": "Invalid timestamp format"}
+	else:
+		punch_time = now_datetime()
 
-	# Get today's checkins
+	punch_date = punch_time.date()
+
+	# Get checkins for the PUNCH DATE (not necessarily today)
 	today_checkins = frappe.db.sql(
 		"""
 		SELECT time, log_type FROM `tabEmployee Checkin`
 		WHERE employee = %s AND DATE(time) = %s
 		ORDER BY time ASC
 		""",
-		(employee, today),
+		(employee, punch_date),
 		as_dict=True,
 	)
 
@@ -284,7 +319,7 @@ def punch():
 
 	# Already completed for the day
 	if has_in and has_out:
-		return {"status": "error", "error": "You have already clocked in and out today"}
+		return {"status": "error", "error": f"You have already clocked in and out for {punch_date}"}
 
 	# Determine log type
 	if not has_in:
@@ -293,8 +328,12 @@ def punch():
 		log_type = "OUT"
 		# Enforce max shift duration
 		in_time = next(c.time for c in today_checkins if c.log_type == "IN")
-		now = now_datetime()
-		hours_worked = (now - in_time).total_seconds() / 3600
+		
+		# Calculate hours worked based on PUNCH TIME
+		if isinstance(in_time, str):
+			in_time = get_datetime(in_time)
+			
+		hours_worked = (punch_time - in_time).total_seconds() / 3600
 		if hours_worked > MAX_SHIFT_HOURS:
 			return {"status": "error", "error": f"Shift exceeded {MAX_SHIFT_HOURS} hours. Please contact HR."}
 	else:
@@ -305,7 +344,7 @@ def punch():
 			{
 				"doctype": "Employee Checkin",
 				"employee": employee,
-				"time": now_datetime(),
+				"time": punch_time,
 				"log_type": log_type,
 			}
 		)
@@ -318,6 +357,7 @@ def punch():
 
 		return {
 			"status": "success",
+
 			"log_type": log_type,
 			"time": checkin.time.isoformat() if hasattr(checkin.time, "isoformat") else str(checkin.time),
 		}
@@ -478,6 +518,7 @@ def get_leave_balance():
 
 
 @frappe.whitelist()
+@rate_limit(limit=5, seconds=60)
 def apply_leave(leave_type, from_date, to_date, half_day=0, reason=""):
 	"""Submit leave application.
 
@@ -507,6 +548,14 @@ def apply_leave(leave_type, from_date, to_date, half_day=0, reason=""):
 		)
 		leave.insert(ignore_permissions=True)
 		frappe.db.commit()
+
+		# Notify Manager
+		try:
+			from arijentek_core.api.notifications import notify_leave_application
+			notify_leave_application(leave)
+		except Exception:
+			# Don't fail the application if notification fails
+			pass
 
 		return {"success": True, "name": leave.name}
 	except Exception as e:
@@ -598,20 +647,17 @@ def get_salary_slips():
 
 @frappe.whitelist(allow_guest=False)
 def download_payslip(name):
-	"""Download salary slip PDF"""
-	employee = get_current_employee()
-	slip = frappe.get_doc("Salary Slip", name)
+	"""Download salary slip PDF using simplified template."""
+	from arijentek_core.payroll.payslip_generator import download_payslip_pdf
+	return download_payslip_pdf(name)
 
-	if slip.employee != employee:
-		frappe.throw(_("Not authorized"))
 
-	# Generate and return PDF
-	from frappe.utils.pdf import get_pdf
-
-	html = frappe.get_print("Salary Slip", name)
-	frappe.local.response.filename = f"Payslip_{slip.start_date}.pdf"
-	frappe.local.response.filecontent = get_pdf(html)
-	frappe.local.response.type = "pdf"
+@frappe.whitelist()
+@rate_limit(limit=5, seconds=60)
+def delete_my_payslip(name):
+	"""Delete a salary slip owned by the current employee."""
+	from arijentek_core.payroll.payslip_generator import delete_my_payslip as _delete
+	return _delete(name)
 
 
 @frappe.whitelist()
@@ -625,7 +671,7 @@ def generate_payroll(month=None, year=None):
 		return {"success": False, "error": "Not authorized to generate payroll"}
 
 	from frappe.utils import getdate, get_first_day, get_last_day
-	from arijentek_core.payroll.automation import generate_monthly_payroll, process_payroll_entry
+	from arijentek_core.payroll.payslip_generator import generate_payroll_for_month
 
 	today = getdate()
 	year = int(year) if year else today.year
@@ -634,24 +680,123 @@ def generate_payroll(month=None, year=None):
 		month = 12
 		year -= 1
 
-	posting_date = getdate(f"{year}-{month:02d}-01")
-	posting_date = get_last_day(posting_date)
-
 	try:
-		payroll_entry = generate_monthly_payroll(posting_date=posting_date, dry_run=False)
-		if not payroll_entry:
-			return {"success": False, "error": "No eligible employees found for payroll"}
-
-		process_payroll_entry(payroll_entry.name, submit_salary_slips=True)
-
+		result = generate_payroll_for_month(month=month, year=year, submit=True)
 		return {
-			"success": True,
-			"payroll_entry": payroll_entry.name,
-			"message": f"Payroll generated for {posting_date.strftime('%B %Y')}",
+			"success": result.get("success", False),
+			"payroll_entry": result.get("created_slips", []),
+			"message": result.get("message", ""),
+			"total_created": result.get("total_created", 0),
+			"total_failed": result.get("total_failed", 0),
+			"failed_employees": result.get("failed_employees", []),
 		}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Payroll Generation Error")
 		return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_payslip_details(name):
+	"""Get detailed payslip information including attendance breakdown."""
+	from arijentek_core.payroll.payslip_generator import get_payslip_details as _get_payslip_details
+	return _get_payslip_details(name)
+
+
+@frappe.whitelist()
+def get_payroll_preview(month=None, year=None):
+	"""Get a preview of payroll calculation for the current employee."""
+	employee = get_current_employee()
+	if not employee:
+		return {"error": "Employee not found"}
+
+	from arijentek_core.payroll.calculator import get_payroll_preview as _get_payroll_preview
+	
+	today = getdate()
+	year = int(year) if year else today.year
+	month = int(month) if month else (today.month - 1 if today.month > 1 else 12)
+	if month < 1:
+		month = 12
+		year -= 1
+
+	return _get_payroll_preview(employee, month, year)
+
+
+@frappe.whitelist()
+def get_payroll_dashboard():
+	"""Get payroll dashboard data for the current employee."""
+	employee = get_current_employee()
+	if not employee:
+		return {"error": "Employee not found"}
+
+	from arijentek_core.payroll.payslip_generator import get_payroll_dashboard_data
+	return get_payroll_dashboard_data(employee)
+
+
+@frappe.whitelist()
+@rate_limit(limit=3, seconds=60)
+def generate_my_payslip(month=None, year=None):
+	"""Generate a payslip for the current employee.
+	
+	All employees can generate their own payslips. This is a self-service feature.
+	Security: Only generates for the current logged-in employee, not arbitrary employees.
+	"""
+	employee = get_current_employee()
+	if not employee:
+		return {"success": False, "error": "Employee not found"}
+	
+	# Input validation
+	try:
+		today = getdate()
+		year = int(year) if year else today.year
+		month = int(month) if month else (today.month - 1 if today.month > 1 else 12)
+		
+		# Validate month and year ranges
+		if not (1 <= month <= 12):
+			return {"success": False, "error": "Invalid month. Must be between 1 and 12"}
+		
+		if not (2020 <= year <= 2030):
+			return {"success": False, "error": "Invalid year. Must be between 2020 and 2030"}
+		
+		# Adjust for previous month if needed
+		if month < 1:
+			month = 12
+			year -= 1
+	except (ValueError, TypeError) as e:
+		return {"success": False, "error": f"Invalid month or year: {str(e)}"}
+	
+	# Import and call the payslip generator
+	from arijentek_core.payroll.payslip_generator import PayslipGenerator
+	from frappe.utils import get_first_day, get_last_day
+	
+	try:
+		# Get pay period dates
+		start_date = get_first_day(f"{year}-{month:02d}-01")
+		end_date = get_last_day(f"{year}-{month:02d}-01")
+		
+		# Get company
+		company = frappe.db.get_value("Employee", employee, "company")
+		if not company:
+			company = frappe.defaults.get_user_default("company")
+		
+		# Generate payslip
+		generator = PayslipGenerator(company, start_date, end_date)
+		slip = generator.generate_payslip(employee, submit=True)
+		
+		if slip:
+			return {
+				"success": True,
+				"salary_slip": slip.name,
+				"gross_pay": slip.gross_pay,
+				"net_pay": slip.net_pay,
+				"message": _("Salary Slip created successfully"),
+			}
+		else:
+			error_msg = generator.failed_employees[0]["error"] if generator.failed_employees else "Unknown error"
+			return {"success": False, "error": error_msg}
+			
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Payslip Generation Error - {employee}")
+		return {"success": False, "error": f"Failed to generate payslip: {str(e)}"}
 
 
 # ============ ATTENDANCE SUMMARY & RECORDS ============
@@ -856,12 +1001,18 @@ def get_session_info():
 	user_type = frappe.db.get_value("User", user, "user_type") or ""
 	has_payroll_permission = frappe.has_permission("Payroll Entry", "create") or "HR Manager" in frappe.get_roles(user)
 
+	# Check if is manager (has direct reports)
+	is_manager = False
+	if employee:
+		is_manager = bool(frappe.db.count("Employee", filters={"reports_to": employee, "status": "Active"}))
+
 	return {
 		"user": user,
 		"full_name": frappe.utils.get_fullname(user),
 		"is_logged_in": True,
 		"has_desk_access": user_type == "System User",
 		"has_payroll_permission": bool(has_payroll_permission),
+		"is_manager": is_manager,
 		"employee": employee,
 		"employee_name": emp_data.get("employee_name", ""),
 		"department": emp_data.get("department", ""),
@@ -911,9 +1062,10 @@ def _ensure_leave_allocation(employee, leave_type, from_date, to_date):
 		alloc.insert(ignore_permissions=True)
 		alloc.submit()
 		frappe.db.commit()
-	except Exception:
+	except Exception as e:
 		# Might fail if an overlapping allocation already exists — that's OK,
 		# the Leave Application validation will catch it with a clearer message.
+		frappe.log_error(f"Leave Allocation Error: {e}", "Leave Allocation Auto-Create")
 		frappe.db.rollback()
 
 
@@ -923,3 +1075,145 @@ def _ensure_leave_allocation(employee, leave_type, from_date, to_date):
 def get_current_employee():
 	"""Get employee ID for current user"""
 	return frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+
+
+# ============ PAYROLL SETUP ============
+
+
+@frappe.whitelist()
+def setup_payroll_components():
+	"""Setup default salary components for Indian payroll. Requires HR Manager role."""
+	user = frappe.session.user
+	if not ("HR Manager" in frappe.get_roles(user) or frappe.has_permission("Salary Component", "create")):
+		return {"success": False, "error": "Not authorized to setup payroll components"}
+
+	from arijentek_core.payroll.setup import create_default_salary_components
+
+	try:
+		result = create_default_salary_components()
+		return {"success": True, **result}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Payroll Setup Error")
+		return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_payroll_setup_status():
+	"""Get payroll setup status for the company."""
+	from arijentek_core.payroll.setup import get_payroll_setup_status as _get_status
+	return _get_status()
+
+
+@frappe.whitelist()
+def setup_payroll_for_company():
+	"""Complete payroll setup for the company. Requires HR Manager role."""
+	user = frappe.session.user
+	if not ("HR Manager" in frappe.get_roles(user) or frappe.has_permission("Salary Structure", "create")):
+		return {"success": False, "error": "Not authorized to setup payroll"}
+
+	from arijentek_core.payroll.setup import setup_payroll_for_company as _setup
+
+	try:
+		result = _setup()
+		return {"success": True, **result}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Payroll Setup Error")
+		return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_payroll_summary(month=None, year=None):
+	"""Get payroll summary for the company. Requires HR Manager or Payroll permission."""
+	user = frappe.session.user
+	if not (frappe.has_permission("Salary Slip", "read") or "HR Manager" in frappe.get_roles(user)):
+		return {"error": "Not authorized"}
+
+	from arijentek_core.payroll.automation import get_payroll_summary as _get_summary
+
+	today = getdate()
+	year = int(year) if year else today.year
+	month = int(month) if month else (today.month - 1 if today.month > 1 else 12)
+	if month < 1:
+		month = 12
+		year -= 1
+
+	return _get_summary(month=month, year=year)
+
+# ============ MANAGER FEATURES ============
+
+
+@frappe.whitelist()
+def get_team_leaves():
+	"""Get pending leave applications for employees reporting to the current user"""
+	employee = get_current_employee()
+	if not employee:
+		return []
+
+	# Find direct reports
+	reports = frappe.get_all(
+		"Employee",
+		filters={"reports_to": employee, "status": "Active"},
+		pluck="name"
+	)
+
+	if not reports:
+		return []
+
+	# Get Open applications for these employees
+	apps = frappe.get_all(
+		"Leave Application",
+		filters={
+			"employee": ["in", reports],
+			"status": "Open",
+			"docstatus": 0
+		},
+		fields=["name", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days", "description", "creation"],
+		order_by="creation asc"
+	)
+	
+	return apps
+
+
+@frappe.whitelist()
+def process_leave(leave_application, status, rejection_reason=None):
+	"""Approve or Reject a leave application"""
+	if status not in ["Approved", "Rejected"]:
+		return {"success": False, "error": "Invalid status"}
+
+	employee = get_current_employee()
+	if not employee:
+		return {"success": False, "error": "Employee not found"}
+
+	try:
+		doc = frappe.get_doc("Leave Application", leave_application)
+		
+		# Verify permission: Current employee must be the manager (reports_to)
+		# Or System Manager (but here we focus on hierarchy)
+		applicant = frappe.get_value("Employee", doc.employee, "reports_to")
+		
+		# If applicant's manager is NOT the current employee, deny
+		# Note: In real world, might allow HR users too. For now, strict hierarchy.
+		if applicant != employee and "System Manager" not in frappe.get_roles():
+			return {"success": False, "error": "Not authorized to process this application"}
+
+		if doc.status != "Open":
+			return {"success": False, "error": "Application is not Open"}
+
+		if status == "Approved":
+			doc.status = "Approved"
+			doc.submit() # Submitting makes it effective
+		else:
+			doc.status = "Rejected"
+			# doc.reject() # workflow state depending on setup, but simpler:
+			doc.save(ignore_permissions=True)
+			
+		# Notify Employee
+		try:
+			from arijentek_core.api.notifications import notify_leave_status
+			notify_leave_status(doc)
+		except Exception:
+			pass
+
+		return {"success": True}
+	except Exception as e:
+		return {"success": False, "error": str(e)}

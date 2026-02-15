@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { attendanceApi, leaveApi } from '../services/api';
+import { attendanceApi, leaveApi, useCachedFetch } from '../services/api';
 import ClockWidget from '../components/ClockWidget.vue';
 import {
   CalendarCheck,
@@ -120,26 +120,23 @@ function formatDate(dateStr: string) {
 }
 
 async function loadData() {
-  loading.value = true;
-  try {
-    const [attData, holData] = await Promise.allSettled([
-      attendanceApi.getRecords(selectedMonth.value, selectedYear.value),
-      leaveApi.getHolidays(
-        `${selectedYear.value}-01-01`,
-        `${selectedYear.value}-12-31`
-      ),
-    ]);
+  // loading.value = true; // Use cache
+  const m = selectedMonth.value;
+  const y = selectedYear.value;
+  const key = `attendance_${y}_${m}`;
 
-    if (attData.status === 'fulfilled' && attData.value) {
-      records.value = attData.value.records || [];
-      summary.value = attData.value.summary || {};
+  useCachedFetch(key, () => attendanceApi.getRecords(m, y), (data) => {
+    if (data) {
+       records.value = data.records || [];
+       summary.value = data.summary || {};
+       loading.value = false;
     }
-    if (holData.status === 'fulfilled') {
-      holidays.value = Array.isArray(holData.value) ? holData.value : [];
-    }
-  } finally {
-    loading.value = false;
-  }
+  });
+
+  const holKey = `holidays_${y}`;
+  useCachedFetch(holKey, () => leaveApi.getHolidays(`${y}-01-01`, `${y}-12-31`), (data) => {
+     if (Array.isArray(data)) holidays.value = data;
+  });
 }
 
 // Reload when month changes

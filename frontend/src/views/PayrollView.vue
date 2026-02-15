@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { payrollApi } from '../services/api';
+import { payrollApi, useCachedFetch } from '../services/api';
 import { useAuthStore } from '../stores/auth';
 import {
   Wallet,
@@ -13,6 +13,7 @@ import {
   Play,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from 'lucide-vue-next';
 
 const auth = useAuthStore();
@@ -20,6 +21,7 @@ const loading = ref(true);
 const generateLoading = ref(false);
 const generateError = ref('');
 const generateSuccess = ref('');
+const showGenerator = ref(false);
 
 // Generate payroll form - defaults to previous month
 const now = new Date();
@@ -65,29 +67,47 @@ function downloadSlip(name: string) {
   window.open(url, '_blank');
 }
 
-async function loadData() {
-  loading.value = true;
+async function deleteSlip(name: string) {
+  if (!confirm('Are you sure you want to delete this payslip?')) return;
+  
   try {
-    const data = await payrollApi.getSlips();
-    slips.value = Array.isArray(data) ? data : [];
-  } catch {
-    slips.value = [];
-  } finally {
-    loading.value = false;
+    const res = await payrollApi.deletePayslip(name);
+    if (res && res.success) {
+      // Remove from list
+      slips.value = slips.value.filter(s => s.name !== name);
+    } else {
+      alert(res?.error || 'Failed to delete payslip');
+    }
+  } catch (e: any) {
+    alert(e.message || 'Error deleting payslip');
   }
 }
 
-async function generatePayroll() {
+async function loadData() {
+  // loading.value = true;
+  useCachedFetch('salary_slips', payrollApi.getSlips, (data) => {
+    if (data) {
+      slips.value = Array.isArray(data) ? data : [];
+      loading.value = false;
+    }
+  });
+}
+
+async function generateMyPayslip() {
   generateLoading.value = true;
   generateError.value = '';
   generateSuccess.value = '';
   try {
-    const result = await payrollApi.generatePayroll(genMonth.value, genYear.value);
+    const result = await payrollApi.generateMyPayslip(genMonth.value, genYear.value);
     if (result?.success) {
-      generateSuccess.value = result.message || 'Payroll generated successfully';
+      generateSuccess.value = result.message || 'Payslip generated successfully';
       await loadData();
+      // Auto-download the PDF
+      if (result.salary_slip) {
+        downloadSlip(result.salary_slip);
+      }
     } else {
-      generateError.value = result?.error || 'Failed to generate payroll';
+      generateError.value = result?.error || 'Failed to generate payslip. Check if attendance exists.';
     }
   } catch (e: any) {
     generateError.value = e?.message || 'Something went wrong';
@@ -120,10 +140,10 @@ onMounted(loadData);
   </div>
 
   <div v-else class="space-y-6 animate-slide-up">
-    <!-- Generate Payroll (HR/Manager only) -->
-    <div v-if="auth.hasPayrollPermission" class="glass-card p-6">
-      <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Generate Payslips</h3>
-      <p class="text-sm text-slate-500 mb-4">Create salary slips for all eligible employees for the selected month</p>
+    <!-- Get Salary Slip (Self-Service) -->
+    <div class="glass-card p-6 animate-fade-in-up">
+      <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Request Salary Slip</h3>
+      <p class="text-sm text-slate-500 mb-4">Generate and download your salary slip</p>
       <div class="flex flex-wrap items-end gap-4">
         <div>
           <label class="block text-xs font-medium text-slate-400 mb-1.5">Month</label>
@@ -136,11 +156,11 @@ onMounted(loadData);
           <input v-model.number="genYear" type="number" min="2020" max="2030"
             class="input-dark w-24" />
         </div>
-        <button @click="generatePayroll" :disabled="generateLoading"
+        <button @click="generateMyPayslip" :disabled="generateLoading"
           class="btn-accent flex items-center gap-2 px-5 py-2.5">
           <Loader2 v-if="generateLoading" :size="18" class="animate-spin" />
           <Play v-else :size="18" :stroke-width="1.8" />
-          {{ generateLoading ? 'Generating...' : 'Generate Payroll' }}
+          {{ generateLoading ? 'Processing...' : 'Generate' }}
         </button>
       </div>
       <div v-if="generateError" class="mt-4 flex items-start gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-xl">
@@ -153,82 +173,48 @@ onMounted(loadData);
       </div>
     </div>
 
-    <!-- Summary cards -->
-    <div v-if="slips.length" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="glass-card-hover p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-slate-400">Avg Net Pay</span>
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-            <TrendingUp :size="18" :stroke-width="1.8" />
-          </div>
-        </div>
-        <p class="text-2xl font-bold text-emerald-400">{{ formatCurrency(avgNet) }}</p>
-        <p class="text-xs text-slate-500 mt-1">per month</p>
-      </div>
-      <div class="glass-card-hover p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-slate-400">YTD Gross</span>
-          <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-            <Banknote :size="18" :stroke-width="1.8" />
-          </div>
-        </div>
-        <p class="text-2xl font-bold text-blue-400">{{ formatCurrency(totalGross) }}</p>
-        <p class="text-xs text-slate-500 mt-1">{{ slips.length }} slip{{ slips.length !== 1 ? 's' : '' }}</p>
-      </div>
-      <div class="glass-card-hover p-5">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-medium text-slate-400">YTD Net</span>
-          <div class="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
-            <Wallet :size="18" :stroke-width="1.8" />
-          </div>
-        </div>
-        <p class="text-2xl font-bold text-teal-400">{{ formatCurrency(totalNet) }}</p>
-        <p class="text-xs text-slate-500 mt-1">total credited</p>
-      </div>
-    </div>
-
     <!-- Salary Slips list -->
     <div>
       <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Salary Slips</h3>
 
       <div v-if="slips.length" class="space-y-3">
         <div v-for="slip in slips" :key="slip.name"
-          class="glass-card-hover p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          class="glass-card-hover p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <!-- Left: Month info -->
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
-              <Calendar :size="20" :stroke-width="1.8" />
+            <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <FileCheck :size="20" :stroke-width="1.8" />
             </div>
             <div>
-              <p class="text-base font-semibold text-white">{{ slip.month }} {{ slip.year }}</p>
-              <p class="text-xs text-slate-500">
+              <div class="flex items-center gap-2">
+                <p class="text-base font-semibold text-white">{{ slip.month }} {{ slip.year }}</p>
+                <div class="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Generated
+                </div>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">
                 {{ new Date(slip.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }}
-                — {{ new Date(slip.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }}
+                — {{ new Date(slip.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
               </p>
             </div>
           </div>
 
-          <!-- Center: Pay info -->
-          <div class="flex items-center gap-6 sm:gap-8">
-            <div>
-              <p class="text-xs text-slate-500">Gross</p>
-              <p class="text-sm font-semibold text-slate-300">{{ formatCurrency(slip.gross_pay) }}</p>
-            </div>
-            <div>
-              <p class="text-xs text-slate-500">Net Pay</p>
-              <p class="text-sm font-bold text-emerald-400">{{ formatCurrency(slip.net_pay) }}</p>
-            </div>
+          <!-- Right: Actions -->
+          <div class="flex items-center gap-3">
+            <button @click="deleteSlip(slip.name)"
+              class="p-2 rounded-lg bg-white/[0.04] hover:bg-red-500/10 border border-white/[0.06] hover:border-red-500/20 text-slate-400 hover:text-red-400 transition-all"
+              title="Delete Payslip">
+              <Trash2 :size="18" :stroke-width="1.8" />
+            </button>
+            <button @click="downloadSlip(slip.name)"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg
+                     bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]
+                     text-sm font-medium text-slate-300 hover:text-white transition-all
+                     shrink-0">
+              <Download :size="16" :stroke-width="1.8" />
+              Download PDF
+            </button>
           </div>
-
-          <!-- Right: Download -->
-          <button @click="downloadSlip(slip.name)"
-            class="flex items-center gap-2 px-4 py-2.5 rounded-xl
-                   bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]
-                   text-sm font-medium text-slate-300 hover:text-white transition-all
-                   self-start sm:self-center shrink-0">
-            <Download :size="16" :stroke-width="1.8" />
-            Download
-          </button>
         </div>
       </div>
 

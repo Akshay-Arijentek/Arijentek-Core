@@ -271,6 +271,11 @@ doc_events = {
 		"after_insert": "arijentek_core.attendance.auto_attendance.on_employee_checkin_insert",
 	},
 	"Attendance": {"on_submit": "arijentek_core.security.log_attendance_event"},
+	"Leave Application": {
+		"after_insert": "arijentek_core.leave_notifications.on_leave_application_insert",
+		"on_update": "arijentek_core.leave_notifications.on_leave_application_update",
+		"validate": "arijentek_core.leave_validation.validate_leave_date",
+	},
 }
 
 # --- Session ---
