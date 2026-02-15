@@ -8,18 +8,6 @@ RUN bench init --skip-redis-config-generation --skip-assets --apps_path /apps.js
 
 WORKDIR /frappe-bench
 
-# Get other apps from remote (already done by init for those in apps.json)
-# ...
-
-# COPY local app source
-# Note: Context must be set to /workspace/development/frappe-bench/apps/arijentek_core (app root)
-COPY . /frappe-bench/apps/arijentek_core
-
-# Install the app
-RUN cd /frappe-bench/apps/arijentek_core && \
-    pip install -e . && \
-    echo "arijentek_core" >> /frappe-bench/sites/apps.txt
-
 # Build assets
 RUN bench build
 
