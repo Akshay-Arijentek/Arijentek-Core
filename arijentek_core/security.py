@@ -56,6 +56,7 @@ def _enforce_content_type():
 				and "application/x-www-form-urlencoded" not in content_type
 			):
 				frappe.log_error(f"Invalid content type: {content_type}", "Security: Invalid Content-Type")
+				frappe.throw(_("Invalid content type"))
 
 
 def log_attendance_event(doc, method):

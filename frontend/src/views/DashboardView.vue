@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { dashboardApi, attendanceApi, leaveApi } from '../services/api';
+import { dashboardApi, attendanceApi, leaveApi, useCachedFetch } from '../services/api';
 import ClockWidget from '../components/ClockWidget.vue';
 import {
   CalendarCheck,
@@ -82,38 +82,43 @@ const totalLeave = computed(() =>
 
 let loadInProgress = false;
 let lastLoadTime = 0;
-const MIN_LOAD_INTERVAL_MS = 2000;
 
 async function loadDashboard() {
   const now = Date.now();
   if (loadInProgress) return;
-  if (lastLoadTime > 0 && now - lastLoadTime < MIN_LOAD_INTERVAL_MS) return;
+  
   loadInProgress = true;
   lastLoadTime = now;
-  loading.value = true;
-  try {
-    const [dashData, leaves, apps] = await Promise.allSettled([
-      dashboardApi.getData(),
-      leaveApi.getBalance(),
-      leaveApi.getApplications(),
-    ]);
-    if (dashData.status === 'fulfilled' && dashData.value && !dashData.value.error) {
-      dash.value = dashData.value;
-    } else if (dashData.status === 'fulfilled' && dashData.value?.error) {
-      dash.value = null;
+
+  // 1. Dashboard Data
+  useCachedFetch('dashboard_data', dashboardApi.getData, (data) => {
+    if (data && !data.error) {
+       dash.value = data.message || data;
+       loading.value = false;
     }
-    if (leaves.status === 'fulfilled') {
-      leaveBalance.value = Array.isArray(leaves.value) ? leaves.value : [];
-    }
-    if (apps.status === 'fulfilled') {
-      const list = Array.isArray(apps.value) ? apps.value : [];
-      recentLeaves.value = list.slice(0, 3);
-    }
-  } finally {
-    loading.value = false;
-    loadInProgress = false;
-  }
+  });
+
+  // 2. Leave Balance
+  useCachedFetch('leave_balance', leaveApi.getBalance, (data) => {
+     if (Array.isArray(data)) {
+       leaveBalance.value = data;
+     } else if (data.message && Array.isArray(data.message)) {
+       leaveBalance.value = data.message;
+     }
+  });
+
+  // 3. Recent Leaves
+  useCachedFetch('leave_applications', leaveApi.getApplications, (data) => {
+     const arr = Array.isArray(data) ? data : (data.message || []);
+     if (Array.isArray(arr)) {
+       recentLeaves.value = arr.slice(0, 5);
+     }
+  });
+  
+  loadInProgress = false;
 }
+
+
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {

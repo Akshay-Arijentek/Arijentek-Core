@@ -170,7 +170,10 @@ arijentek_core/                          # Root of the Frappe app
 │   │
 │   ├── payroll/
 │   │   ├── __init__.py
-│   │   └── automation.py               # Monthly payroll automation
+│   │   ├── automation.py               # Monthly payroll automation
+│   │   ├── calculator.py               # ★ Attendance-based payroll calculation
+│   │   ├── payslip_generator.py        # ★ Salary slip generation with LOP
+│   │   └── setup.py                    # ★ Default salary components setup
 │   │
 │   ├── security.py                     # Request validation, session hooks
 │   ├── utils.py                        # Portal redirect helpers
@@ -409,13 +412,78 @@ arijentek_core/                          # Root of the Frappe app
 
 ### 4.12 `arijentek_core/payroll/automation.py`
 
-**Purpose**: Monthly payroll automation.
+**Purpose**: Monthly payroll automation with attendance-based calculations.
 
 | Function | Purpose |
 |----------|---------|
-| `generate_monthly_payroll(company, ...)` | Create Payroll Entry for eligible employees |
+| `generate_monthly_payroll(company, ...)` | Create payroll for eligible employees with attendance-based payment days |
 | `run_monthly_payroll_automation(posting_date)` | Scheduler hook: generate + process payroll |
-| `get_payroll_status(employee, month, year)` | Check if salary slip exists |
+| `get_payroll_status(employee, month, year)` | Check if salary slip exists, with attendance summary |
+| `get_payroll_preview_for_employee(...)` | Preview payroll calculation before generation |
+| `recalculate_payroll_for_employee(...)` | Recalculate after attendance changes |
+| `get_payroll_summary(company, month, year)` | Company-wide payroll statistics |
+
+---
+
+### 4.13 `arijentek_core/payroll/calculator.py`
+
+**Purpose**: Core payroll calculation engine with attendance-based logic.
+
+| Class/Function | Purpose |
+|----------------|---------|
+| `PayrollCalculator` | Main class for attendance-based payroll calculation |
+| `load_data()` | Load salary structure, attendance, holidays |
+| `calculate_earnings()` | Calculate earnings based on payment days |
+| `calculate_deductions()` | Calculate all deductions (PT, PF, ESI, TDS) |
+| `get_payment_days()` | Get payable days (working days - LOP) |
+| `_calculate_statutory_deductions()` | Calculate PT, PF, ESI based on Indian rules |
+| `calculate_employee_payroll(employee, start, end)` | API: Calculate payroll for employee |
+| `get_payroll_preview(employee, month, year)` | API: Get payroll preview |
+| `get_lop_summary(employee, start, end)` | Get LOP days breakdown |
+
+**Key Features**:
+- Attendance-based payment days calculation
+- LOP (Loss of Pay) deduction from absences and LWP leave
+- Professional Tax (PT) based on state-wise slabs
+- Provident Fund (PF) at 12% of Basic
+- ESI at 0.75% for eligible employees (gross ≤ ₹21,000)
+- Formula-based salary component calculation
+
+---
+
+### 4.14 `arijentek_core/payroll/payslip_generator.py`
+
+**Purpose**: Generate salary slips with detailed breakdown.
+
+| Class/Function | Purpose |
+|----------------|---------|
+| `PayslipGenerator` | Generate salary slips for employees |
+| `get_eligible_employees()` | Get employees with salary structure assignments |
+| `generate_payslip(employee, submit)` | Generate single salary slip |
+| `generate_all_payslips(employees, submit)` | Batch generation |
+| `generate_payslip_for_employee(...)` | API: Generate for single employee |
+| `generate_payroll_for_month(...)` | API: Generate for all eligible |
+| `get_payslip_details(name)` | Get detailed payslip with attendance breakdown |
+| `get_employee_payslips(employee, limit)` | List employee's salary slips |
+| `download_payslip_pdf(name)` | Generate and download PDF |
+| `get_payroll_dashboard_data(employee)` | YTD totals, latest slip, monthly breakdown |
+
+---
+
+### 4.15 `arijentek_core/payroll/setup.py`
+
+**Purpose**: Setup default salary components for Indian payroll.
+
+| Function | Purpose |
+|----------|---------|
+| `create_default_salary_components(company)` | Create earnings and deduction components |
+| `create_default_salary_structure(company)` | Create standard salary structure |
+| `setup_payroll_for_company(company)` | Complete payroll setup |
+| `get_payroll_setup_status(company)` | Check setup completion status |
+
+**Default Components Created**:
+- **Earnings**: Basic, HRA, Conveyance, Medical, Special Allowance, DA, LTA, Bonus, Overtime
+- **Deductions**: Professional Tax, Provident Fund, ESI, TDS, Voluntary PF, Health Insurance, Loan Recovery, LOP Deduction
 
 ---
 
@@ -474,6 +542,11 @@ arijentek_core/                          # Root of the Frappe app
 | `leaveApi.cancel(name)` | POST | `arijentek_core.api.cancel_leave` |
 | `payrollApi.getSlips()` | GET | `arijentek_core.api.get_salary_slips` |
 | `payrollApi.getDownloadUrl(name)` | — | URL for PDF download |
+| `payrollApi.generatePayroll(month, year)` | POST | `arijentek_core.api.generate_payroll` |
+| `payrollApi.getSlipDetails(name)` | GET | `arijentek_core.api.get_payslip_details` |
+| `payrollApi.getPreview(month, year)` | GET | `arijentek_core.api.get_payroll_preview` |
+| `payrollApi.getDashboard()` | GET | `arijentek_core.api.get_payroll_dashboard` |
+| `payrollApi.generateMyPayslip(month, year)` | POST | `arijentek_core.api.generate_my_payslip` |
 
 **Implementation detail**: `request()` adds `X-Frappe-CSRF-Token` for non-GET, uses `credentials: 'include'` for cookies.
 

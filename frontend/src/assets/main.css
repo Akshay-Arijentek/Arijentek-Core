@@ -9,6 +9,7 @@
     box-sizing: border-box;
   }
 
+  /* ── Dark mode (default) ── */
   :root {
     --accent: #14b8a6;
     --accent-light: #2dd4bf;
@@ -16,6 +17,121 @@
     --surface: #12121a;
     --surface-50: #1a1a2e;
     --bg: #0b0d13;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-tertiary: #64748b;
+    --border-color: rgba(255, 255, 255, 0.06);
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-hover: rgba(255, 255, 255, 0.07);
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --input-bg: rgba(255, 255, 255, 0.04);
+    --heading-color: #f1f5f9;
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+    --success-bg: rgba(34, 197, 94, 0.12);
+    --success-text: #4ade80;
+    --warning-bg: rgba(245, 158, 11, 0.12);
+    --warning-text: #fbbf24;
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    --danger-text: #f87171;
+    --info-bg: rgba(59, 130, 246, 0.12);
+    --info-text: #60a5fa;
+    --neutral-bg: rgba(100, 116, 139, 0.12);
+    --neutral-text: #94a3b8;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: rgba(100, 116, 139, 0.4);
+    --accent-glow: rgba(20, 184, 166, 0.3);
+    --row-hover: rgba(255, 255, 255, 0.02);
+  }
+
+  /* ── Light mode ── */
+  .light-mode {
+    --accent: #0d9488;
+    --accent-light: #14b8a6;
+    --accent-dark: #0f766e;
+    --surface: #ffffff;
+    --surface-50: #f8fafc;
+    --bg: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #64748b;
+    --border-color: rgba(15, 23, 42, 0.08);
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-hover: rgba(255, 255, 255, 0.9);
+    --overlay-bg: rgba(0, 0, 0, 0.4);
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --input-bg: rgba(241, 245, 249, 0.8);
+    --heading-color: #0f172a;
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    --success-bg: rgba(34, 197, 94, 0.1);
+    --success-text: #16a34a;
+    --warning-bg: rgba(245, 158, 11, 0.1);
+    --warning-text: #d97706;
+    --danger-bg: rgba(239, 68, 68, 0.1);
+    --danger-text: #dc2626;
+    --info-bg: rgba(59, 130, 246, 0.1);
+    --info-text: #2563eb;
+    --neutral-bg: rgba(100, 116, 139, 0.1);
+    --neutral-text: #64748b;
+    --scrollbar-track: rgba(0, 0, 0, 0.02);
+    --scrollbar-thumb: rgba(100, 116, 139, 0.3);
+    --accent-glow: rgba(13, 148, 136, 0.2);
+    --row-hover: rgba(0, 0, 0, 0.02);
+  }
+
+  /* ── Light-mode overrides for hardcoded Tailwind classes ──
+       These remap dark-only utility classes to proper light values
+       so existing Vue components work in both themes without changes. */
+  .light-mode .text-white {
+    color: var(--heading-color) !important;
+  }
+
+  .light-mode .text-slate-300 {
+    color: var(--text-secondary) !important;
+  }
+
+  .light-mode .text-slate-400 {
+    color: var(--text-secondary) !important;
+  }
+
+  .light-mode .text-slate-500 {
+    color: var(--text-tertiary) !important;
+  }
+
+  .light-mode .text-slate-600 {
+    color: var(--text-tertiary) !important;
+  }
+
+  /* Background overrides */
+  .light-mode .bg-white\/\[0\.03\],
+  .light-mode .bg-white\/\[0\.04\],
+  .light-mode .bg-white\/\[0\.05\] {
+    background-color: var(--glass-bg) !important;
+  }
+
+  .light-mode .bg-white\/\[0\.08\] {
+    background-color: var(--glass-hover) !important;
+  }
+
+  .light-mode .hover\:bg-white\/\[0\.02\]:hover,
+  .light-mode .hover\:bg-white\/\[0\.08\]:hover {
+    background-color: var(--glass-hover) !important;
+  }
+
+  .light-mode .hover\:text-white:hover {
+    color: var(--heading-color) !important;
+  }
+
+  /* Border overrides */
+  .light-mode .border-white\/10,
+  .light-mode .border-white\/\[0\.06\],
+  .light-mode .border-white\/\[0\.04\],
+  .light-mode .border-white\/\[0\.03\] {
+    border-color: var(--border-color) !important;
+  }
+
+  .light-mode .divide-white\/\[0\.04\]> :not([hidden])~ :not([hidden]) {
+    border-color: var(--border-color) !important;
   }
 
   html {
@@ -26,67 +142,89 @@
 
   body {
     background-color: var(--bg);
-    color: #f1f5f9;
+    color: var(--text-primary);
     min-height: 100vh;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
-  /* Custom scrollbar */
+  /* ── All theme-sensitive selectors auto-transition ── */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, box-shadow, fill, stroke;
+    transition-duration: 0.2s;
+    transition-timing-function: ease;
+  }
+
+  /* Disable transition on animation elements to prevent jank */
+  .animate-spin,
+  .animate-fade-in,
+  .animate-slide-up,
+  [class*="animate-"] {
+    transition: none !important;
+  }
+
+  /* ── Scrollbar ── */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--scrollbar-track);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--text-tertiary);
   }
 }
 
 @layer components {
-  /* Glass card */
+
+  /* ── Glass cards ── */
   .glass-card {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
     border-radius: 1rem;
+    box-shadow: var(--card-shadow);
   }
 
   .glass-card-hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
     border-radius: 1rem;
-    transition: all 0.3s ease;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   }
 
   .glass-card-hover:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    background: var(--glass-hover);
+    box-shadow: 0 8px 32px var(--shadow-color);
+    transform: translateY(-1px);
   }
 
-  /* Accent glow button */
+  /* ── Accent glow button ── */
   .btn-accent {
     background-color: var(--accent);
     color: white;
     font-weight: 600;
     border-radius: 0.75rem;
     padding: 0.75rem 1.5rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba(20, 184, 166, 0.3);
+    box-shadow: 0 4px 16px var(--accent-glow);
+    cursor: pointer;
+    border: none;
   }
 
   .btn-accent:hover {
     background-color: var(--accent-light);
-    box-shadow: 0 6px 24px rgba(20, 184, 166, 0.45);
+    box-shadow: 0 6px 24px var(--accent-glow);
     transform: translateY(-1px);
   }
 
@@ -100,91 +238,110 @@
     box-shadow: none;
   }
 
-  .btn-accent:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(20, 184, 166, 0.5);
+  .btn-accent:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
-  /* Ghost button */
+  /* ── Ghost button ── */
   .btn-ghost {
-    @apply text-slate-400 font-medium rounded-xl px-4 py-2.5
-           transition-all duration-200 hover:text-white
-           focus:outline-none;
+    @apply font-medium rounded-xl px-4 py-2.5 focus:outline-none;
     background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: none;
   }
 
   .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-bg);
+    color: var(--text-primary);
   }
 
-  /* Input style */
+  /* ── Input ── */
   .input-dark {
     width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
     border-radius: 0.75rem;
     padding: 0.75rem 1rem;
-    color: white;
-    transition: all 0.2s ease;
+    color: var(--text-primary);
     font-size: 0.875rem;
   }
 
   .input-dark::placeholder {
-    color: #64748b;
+    color: var(--text-tertiary);
   }
 
   .input-dark:focus {
     outline: none;
-    border-color: rgba(20, 184, 166, 0.5);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-hover);
   }
 
   select.input-dark {
     background-image: none;
+    cursor: pointer;
   }
 
   select.input-dark option {
-    background-color: #1a1a2e;
-    color: white;
+    background-color: var(--surface);
+    color: var(--text-primary);
   }
 
-  /* Status badges */
+  /* ── Status badges ── */
   .badge {
     @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
   }
 
   .badge-success {
     @apply badge;
-    background: rgba(34, 197, 94, 0.15);
-    color: #4ade80;
+    background: var(--success-bg);
+    color: var(--success-text);
   }
 
   .badge-warning {
     @apply badge;
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
+    background: var(--warning-bg);
+    color: var(--warning-text);
   }
 
   .badge-danger {
     @apply badge;
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    background: var(--danger-bg);
+    color: var(--danger-text);
   }
 
   .badge-info {
     @apply badge;
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    background: var(--info-bg);
+    color: var(--info-text);
   }
 
   .badge-neutral {
     @apply badge;
-    background: rgba(100, 116, 139, 0.15);
-    color: #94a3b8;
+    background: var(--neutral-bg);
+    color: var(--neutral-text);
   }
 
-  /* Holidays scroll - scrollbar in gutter outside content */
+  /* ── Theme text helpers ── */
+  .t-heading {
+    color: var(--heading-color);
+  }
+
+  .t-primary {
+    color: var(--text-primary);
+  }
+
+  .t-secondary {
+    color: var(--text-secondary);
+  }
+
+  .t-tertiary {
+    color: var(--text-tertiary);
+  }
+
+  /* ── Holidays scroll ── */
   .holidays-scroll {
     scrollbar-gutter: stable;
   }
@@ -194,46 +351,42 @@
   }
 
   .holidays-scroll::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--scrollbar-track);
     border-radius: 4px;
     margin: 4px 0;
   }
 
   .holidays-scroll::-webkit-scrollbar-thumb {
-    background: rgba(71, 85, 105, 0.6);
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
   }
 
-  .holidays-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(71, 85, 105, 0.9);
-  }
-
-  /* Stat card number */
   .stat-number {
     @apply text-3xl font-bold tracking-tight;
+    color: var(--text-primary);
   }
 }
 
-/* Page transition */
+/* ── Page transition ── */
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(6px);
 }
 
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px);
 }
 
-/* Modal transition */
+/* ── Modal transition ── */
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 
 .modal-enter-from,
@@ -243,24 +396,73 @@
 
 .modal-enter-active .modal-content,
 .modal-leave-active .modal-content {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .modal-enter-from .modal-content {
-  transform: scale(0.95) translateY(10px);
+  transform: scale(0.96) translateY(8px);
   opacity: 0;
 }
 
 .modal-leave-to .modal-content {
-  transform: scale(0.95) translateY(10px);
+  transform: scale(0.96) translateY(8px);
   opacity: 0;
 }
 
-/* SVG ring animation */
+/* ── SVG ring animation ── */
 .clock-ring-progress {
   transition: stroke-dashoffset 1s ease;
 }
 
 .clock-ring-bg {
-  stroke: rgba(255, 255, 255, 0.06);
+  stroke: var(--border-color);
+}
+
+/* ── Theme icon transition ── */
+.theme-icon-enter-active,
+.theme-icon-leave-active {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.theme-icon-enter-from {
+  transform: rotate(-90deg) scale(0.7);
+  opacity: 0;
+}
+
+.theme-icon-leave-to {
+  transform: rotate(90deg) scale(0.7);
+  opacity: 0;
+}
+
+/* ── Utility animations ── */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.25s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.25s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

@@ -34,6 +34,24 @@ const router = createRouter({
       component: () => import('../views/PayrollView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/manager',
+      name: 'manager',
+      component: () => import('../views/ManagerView.vue'),
+      meta: { requiresAuth: true, requiresManager: true },
+    },
+    {
+      path: '/change-password',
+      name: 'change-password',
+      component: () => import('../views/ChangePasswordView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/expense',
+      name: 'expense',
+      component: () => import('../views/ExpenseView.vue'),
+      meta: { requiresAuth: true },
+    },
     // Catch-all → dashboard
     {
       path: '/:pathMatch(.*)*',
@@ -55,6 +73,8 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
     next({ name: 'login' });
+  } else if (to.meta.requiresManager && !auth.isManager) {
+    next({ name: 'dashboard' });
   } else if (to.meta.guest && auth.isLoggedIn) {
     next({ name: 'dashboard' });
   } else {

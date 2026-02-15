@@ -1,6 +1,11 @@
-import{c as o}from"./main.js";/**
+import{c as e}from"./main.js";/**
  * @license lucide-vue-next v0.563.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const n=o("chevron-down",[["path",{d:"m6 9 6 6 6-6",key:"qrunsl"}]]);export{n as C};
+ */const t=e("calendar",[["path",{d:"M8 2v4",key:"1cmpym"}],["path",{d:"M16 2v4",key:"4m81vk"}],["rect",{width:"18",height:"18",x:"3",y:"4",rx:"2",key:"1hopcy"}],["path",{d:"M3 10h18",key:"8toen8"}]]);/**
+ * @license lucide-vue-next v0.563.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const o=e("chevron-down",[["path",{d:"m6 9 6 6 6-6",key:"qrunsl"}]]);export{o as C,t as a};
