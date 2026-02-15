@@ -4,7 +4,7 @@ FROM frappe/bench:latest as builder
 COPY docker/builder_apps.json /apps.json
 
 # Initialize bench with remote apps
-RUN bench init --skip-redis-config-generation --skip-assets --apps_path /apps.json /home/frappe/frappe-bench
+RUN bench init --skip-redis-config-generation --skip-assets --frappe-branch version-16 --apps_path /apps.json /home/frappe/frappe-bench
 
 WORKDIR /home/frappe/frappe-bench
 
