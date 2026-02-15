@@ -14,6 +14,10 @@ RUN bench build
 # --- Runtime Stage ---
 FROM frappe/erpnext:v16.0.1
 
+USER root
+RUN apt-get update && apt-get install -y pkg-config gcc g++ make libmariadb-dev && rm -rf /var/lib/apt/lists/*
+USER frappe
+
 COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench/apps /home/frappe/frappe-bench/apps
 COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench/sites/assets /home/frappe/frappe-bench/sites/assets
 
