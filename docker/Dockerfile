@@ -4,9 +4,9 @@ FROM frappe/bench:latest as builder
 COPY docker/builder_apps.json /apps.json
 
 # Initialize bench with remote apps
-RUN bench init --skip-redis-config-generation --skip-assets --apps_path /apps.json /frappe-bench
+RUN bench init --skip-redis-config-generation --skip-assets --apps_path /apps.json /home/frappe/frappe-bench
 
-WORKDIR /frappe-bench
+WORKDIR /home/frappe/frappe-bench
 
 # Build assets
 RUN bench build
@@ -14,8 +14,8 @@ RUN bench build
 # --- Runtime Stage ---
 FROM frappe/erpnext:v16.0.1
 
-COPY --from=builder --chown=frappe:frappe /frappe-bench/apps /home/frappe/frappe-bench/apps
-COPY --from=builder --chown=frappe:frappe /frappe-bench/sites/assets /home/frappe/frappe-bench/sites/assets
+COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench/apps /home/frappe/frappe-bench/apps
+COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench/sites/assets /home/frappe/frappe-bench/sites/assets
 
 RUN cd /home/frappe/frappe-bench && \
     bench setup requirements
