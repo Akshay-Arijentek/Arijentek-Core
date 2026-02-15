@@ -11,8 +11,12 @@ DOCKER_FILE_DIR="$(dirname "$0")/../docker"
 echo "Building Docker image: $IMAGE_NAME:$TAG..."
 
 # Build the image using the Dockerfile in the docker directory
-# We pass the context as the docker directory so it can find builder_apps.json
-docker build -t $IMAGE_NAME:$TAG $DOCKER_FILE_DIR
+# Set context to the app root directory (parent of scripts/)
+APP_ROOT="$(dirname "$0")/.."
+echo "Context: $APP_ROOT"
+
+# Pass the relative path to Dockerfile
+docker build -f "$DOCKER_FILE_DIR/Dockerfile" -t $IMAGE_NAME:$TAG "$APP_ROOT"
 
 echo "Build complete."
 
