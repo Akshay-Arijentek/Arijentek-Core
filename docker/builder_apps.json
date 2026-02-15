@@ -17,7 +17,7 @@
     },
     {
         "url": "https://github.com/frappe/insights",
-        "branch": "develop"
+        "branch": "version-3"
     },
     {
         "url": "https://github.com/frappe/gameplan",
