@@ -5,26 +5,40 @@ set -e
 
 # Configuration
 IMAGE_NAME="arijentek/hrms"
-TAG="v16-latest"
+# Use a timestamp-based tag to ensure Docker/Registry pulling always gets the latest
+TIMESTAMP=$(date +%Y%m%d%H%M)
+TAG="v16-$TIMESTAMP"
 DOCKER_FILE_DIR="$(dirname "$0")/../docker"
 
-echo "Building Docker image: $IMAGE_NAME:$TAG..."
+echo "----------------------------------"
+echo "Building Docker image: $IMAGE_NAME:$TAG"
+echo "----------------------------------"
 
-# Build the image using the Dockerfile in the docker directory
-# Set context to the app root directory (parent of scripts/)
 APP_ROOT="$(dirname "$0")/.."
-echo "Context: $APP_ROOT"
+docker build --no-cache -f "$DOCKER_FILE_DIR/Dockerfile" -t $IMAGE_NAME:$TAG "$APP_ROOT"
 
-# Pass the relative path to Dockerfile
-docker build -f "$DOCKER_FILE_DIR/Dockerfile" -t $IMAGE_NAME:$TAG "$APP_ROOT"
+echo "----------------------------------"
+echo "VERIFYING IMAGE CONTENT LOCALLY"
+echo "----------------------------------"
+# Verify that insights is truly gone
+echo "Installed apps in the new image:"
+docker run --rm $IMAGE_NAME:$TAG ls /home/frappe/frappe-bench/apps
 
+echo "----------------------------------"
 echo "Build complete."
+echo "----------------------------------"
 
-# Tagging for push (user requested akshayarijentek/arijentek-core)
+# Tagging for push
 TARGET_IMAGE="akshayarijentek/arijentek-core:$TAG"
-echo "Tagging as $TARGET_IMAGE..."
-docker tag $IMAGE_NAME:$TAG $TARGET_IMAGE
+LATEST_IMAGE="akshayarijentek/arijentek-core:v16-latest"
 
-echo "Pushing to registry..."
-# docker push $TARGET_IMAGE
-echo "Push command commented out for safety. Run 'docker push $TARGET_IMAGE' to push."
+echo "Tagging as $TARGET_IMAGE and $LATEST_IMAGE..."
+docker tag $IMAGE_NAME:$TAG $TARGET_IMAGE
+docker tag $IMAGE_NAME:$TAG $LATEST_IMAGE
+
+echo "----------------------------------"
+echo "READY TO PUSH"
+echo "----------------------------------"
+echo "Run these commands to finish:"
+echo "docker push $TARGET_IMAGE"
+echo "docker push $LATEST_IMAGE"
