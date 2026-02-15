@@ -8,6 +8,11 @@ RUN bench init --skip-redis-config-generation --skip-assets --frappe-branch vers
 
 WORKDIR /home/frappe/frappe-bench
 
+WORKDIR /home/frappe/frappe-bench/apps/arijentek_core/frontend
+RUN npm install && npm run build
+
+WORKDIR /home/frappe/frappe-bench
+
 # Build assets
 RUN bench build
 
